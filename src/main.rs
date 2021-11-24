@@ -1,15 +1,15 @@
 use iced::{executor, Element, Application, Settings, TextInput, text_input, Command, };
 use iced_native::{command,window};
+mod store;
 
-
-
-
-
+// constants used to define window shape
 const UI_DEFAULT_TEXT_SIZE : u16 = 20;
 const UI_DEFAULT_PADDING : u16 = 10;
 const UI_WIDTH : u32 = 800;
 const UI_STARTING_HEIGHT : u32 = (UI_DEFAULT_TEXT_SIZE  + 2*UI_DEFAULT_PADDING) as u32;
 const UI_ENDING_HEIGHT : u32 = 11*UI_STARTING_HEIGHT;
+
+
 #[derive(Debug, Clone)]
 enum Message {
     SearchTextChanged(String),

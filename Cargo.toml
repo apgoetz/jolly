@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 iced = {git = "https://github.com/iced-rs/iced.git"}
 iced_native = {git = "https://github.com/iced-rs/iced.git"}
+toml = "0.5.8"
