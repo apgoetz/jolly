@@ -284,6 +284,17 @@ mod tests {
 
     }
 
+    #[test]
+    fn parse_error() {
+	let toml = r#"['asdf']
+		    tags = ["foo", 'bar', 'baz'"#;
+
+	assert!(matches!(parse_store(&toml), Err(Error::ParseError(_))));
+
+	
+    }
+
+    
 
     #[test]
     fn single_dir_entry() {
