@@ -42,6 +42,7 @@ impl Application for Jolly {
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
 	let mut jolly = Self::default();
 	jolly.store = flags;
+	jolly.searchtextstate.focus();
 	jolly.default_message = format!("Loaded {} entries", jolly.store.len());
         (jolly, Command::none())
     }
