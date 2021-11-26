@@ -41,14 +41,14 @@ struct RawStoreEntry {
     tags : Option<Vec<String>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Eq,PartialEq)]
 struct  StoreEntry {
     name : String,
     entry : EntryType,
     tags : Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Eq,PartialEq)]
 enum EntryType {
     FileEntry(String),
     DirectoryEntry(String),
@@ -136,6 +136,7 @@ fn parse_store(text : &str) -> Result<Store,Error> {
 
 #[cfg(test)]
 mod tests {
+    use tempfile;
     use super::*;
 
     #[test]
@@ -145,30 +146,68 @@ mod tests {
     }
 
     #[test]
-    fn parse_single_entry() {
-	let file = r#"['foo.txt']
+    fn parse_single_file_entry() {
+
+	let pairs = [(r#"['foo.txt']
 		    tags = ["foo", 'bar', 'baz']
-                    location = "test/location""#;
-	let store = parse_store(file).unwrap();
-	let entry = &store.entries[0];
-	// assert we go the name right
-	assert_eq!(entry.name, "foo.txt");
+                    location = "test/location""#,
+		      
+		      StoreEntry {
+			  name: "foo.txt".to_string(),
+			  entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+			  tags: ["foo", "bar", "baz"].into_iter().map(str::to_string).collect()
+		      }),
+		     (r#"['foo.txt']
+                    location = "test/location""#,
+		      
+		      StoreEntry {
+			  name: "foo.txt".to_string(),
+			  entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+			  tags: [].into_iter().map(str::to_string).collect()
+		      }),
+		     (r#"['test/location/foo.txt']
+		    tags = ["foo", 'bar', 'baz']"#,
+		      
+		      StoreEntry {
+			  name: "test/location/foo.txt".to_string(),
+			  entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+			  tags: ["foo", "bar", "baz"].into_iter().map(str::to_string).collect()
+		      })
+	    ];
 
-	// assert we got the location right
-	if let EntryType::FileEntry(location) = &entry.entry {
-	    assert_eq!(location, "test/location/foo.txt")
-	} else {
-	    panic!("entry is not filetype  ")
+	for (toml, expected_entry) in pairs {
+
+	    let store = parse_store(toml).unwrap();
+	    let entry = &store.entries[0];
+
+	    assert!(store.entries.len() == 1);
+	    assert_eq!(&expected_entry,entry);
+
 	}
 
-	// assert we got the tags right
-	let truth = vec!["foo", "bar", "baz"];
-	assert_eq!(truth.len(), entry.tags.len());
-	for (left, right) in truth.clone().into_iter().zip(&entry.tags) {
-	    assert_eq!(left,right, "tags dont match, expected: {:?}, actual: {:?}", truth, entry.tags);
-	}
     }
 
+
+    #[test]
+    fn single_dir_entry() {
+	let dir = tempfile::tempdir().unwrap();
+	let dirname = dir.path().to_string_lossy(); 
+	let toml = format!(r#"['{}']
+		    tags = ["foo", 'bar', 'baz']"#, dirname);
+	let expected_entry = StoreEntry {
+	    name: dirname.to_string(),
+	    entry: EntryType::DirectoryEntry(dirname.to_string()),
+	    tags: ["foo", "bar", "baz"].into_iter().map(str::to_string).collect()
+	};
+
+	let store = parse_store(&toml).unwrap();
+	let entry = &store.entries[0];
+
+	assert!(store.entries.len() == 1);
+	assert_eq!(&expected_entry,entry);
+
+	
+    }
     
     #[test]
     fn nonexistent_path() {

@@ -10,3 +10,6 @@ iced = {git = "https://github.com/iced-rs/iced.git"}
 iced_native = {git = "https://github.com/iced-rs/iced.git"}
 toml = "0.5.8"
 serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies] 
+tempfile = "3"
