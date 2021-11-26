@@ -14,6 +14,7 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f:&mut fmt::Formatter<'_>) -> fmt::Result {
+	write!(f, "Error: ")?;
 	match self {
 	    Error::StoreError(e) => e.fmt(f),
 	    Error::IcedError(e) => e.fmt(f),

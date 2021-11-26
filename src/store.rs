@@ -34,7 +34,10 @@ impl fmt::Display for Error {
     fn fmt(&self, f:&mut fmt::Formatter<'_>) -> fmt::Result {
 	match self {
 	    Error::IOError(e) => e.fmt(f),
-	    Error::ParseError(e) => e.fmt(f),
+	    Error::ParseError(e) => {
+		write!(f, "TOML Error: ")?;
+		e.fmt(f)
+	    }
 	    Error::CustomError(s) => f.write_str(s)
 	}
     }
@@ -50,14 +53,14 @@ struct RawStoreEntry {
     tags : Option<Vec<String>>,
 }
 
-#[derive(Debug,Eq,PartialEq)]
+#[derive(Debug,Eq,PartialEq, Clone)]
 pub struct  StoreEntry {
     pub name : String,
     pub entry : EntryType,
     pub tags : Vec<String>,
 }
 
-#[derive(Debug,Eq,PartialEq)]
+#[derive(Debug,Eq,PartialEq, Clone)]
 pub enum EntryType {
     FileEntry(String),
     DirectoryEntry(String),
@@ -127,7 +130,7 @@ impl StoreEntry {
     
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Store {
     entries : Vec<StoreEntry>, 
 }

@@ -1,6 +1,7 @@
 use iced::{executor, Element, Application, Settings, TextInput, text_input, Command, };
 use iced_native::{command,window, subscription, event, keyboard};
 use std::path;
+use blocking;
 
 mod store;
 mod error;
@@ -15,6 +16,7 @@ const LOGFILE_NAME : &str = "jolly.toml";
 
 #[derive(Debug, Clone)]
 enum Message {
+    StoreLoaded(Result<store::Store, String>),
     SearchTextChanged(String),
     ExternalEvent(event::Event)
 }
@@ -24,27 +26,38 @@ const ESCAPE_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyR
     modifiers: keyboard::Modifiers::empty(),
 });
 
+
+enum StoreLoadedState {
+    Pending,
+    LoadFailed(String),
+    LoadSucceeded(store::Store, String)
+}
+
+impl Default for StoreLoadedState {
+    fn default() -> Self {
+	StoreLoadedState::Pending
+    }
+}
+
+
 #[derive(Default)]
 struct Jolly {
-    default_message : String,
     searchtext: String,
     searchtextstate: text_input::State,
     should_exit: bool,
-    store: store::Store,
+    store_state: StoreLoadedState,
 }
 
 impl Application for Jolly {
 
     type Message = Message;
     type Executor = executor::Default;
-    type Flags = store::Store;
+    type Flags = ();
     
-    fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
+    fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
 	let mut jolly = Self::default();
-	jolly.store = flags;
 	jolly.searchtextstate.focus();
-	jolly.default_message = format!("Loaded {} entries", jolly.store.len());
-        (jolly, Command::none())
+        (jolly, Command::perform(blocking::unblock(get_store), Message::StoreLoaded))
     }
 
     fn title(&self) -> String {
@@ -53,7 +66,7 @@ impl Application for Jolly {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message>{
         match message {
-	    Message::SearchTextChanged(txt) => {
+	    Message::SearchTextChanged(txt) if matches!(self.store_state, StoreLoadedState::LoadSucceeded(_,_)) => {
 		self.searchtext = txt;
 		Command::single(command::Action::Window(window::Action::Resize{width:UI_WIDTH, height: UI_ENDING_HEIGHT}))
 	    }
@@ -64,6 +77,15 @@ impl Application for Jolly {
 	    Message::ExternalEvent(e) if e == ESCAPE_EVENT => {
 		println!("escape pressed");
 		self.should_exit = true;
+		Command::none()
+	    }
+	    Message::StoreLoaded(Err(err)) => {
+		self.store_state = StoreLoadedState::LoadFailed(err.to_string());
+		Command::none()
+	    }
+	    Message::StoreLoaded(Ok(store)) => {
+		let msg = format!("Loaded {} entries", store.len());
+		self.store_state = StoreLoadedState::LoadSucceeded(store, msg);
 		Command::none()
 	    }
 	    _ => Command::none()
@@ -80,8 +102,15 @@ impl Application for Jolly {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
+	use StoreLoadedState::*;
+	let default_txt = match &self.store_state {
+	    Pending => "Loading Message",
+	    LoadFailed(msg) => msg,
+	    LoadSucceeded(_,msg) => msg,
+	};
+
         TextInput::new(&mut self.searchtextstate,
-		       &self.default_message,
+		       default_txt,
 		       &self.searchtext,
 	Message::SearchTextChanged).padding(UI_DEFAULT_PADDING).into()
     }
@@ -101,17 +130,21 @@ fn get_logfile() -> Result<path::PathBuf, error::Error> {
     } else {
 	Err(error::Error::CustomError(format!("Cannot find {}", LOGFILE_NAME)))
     }
+
+    
+}
+
+fn get_store() -> Result<store::Store, String>{
+    let logfile = get_logfile().map_err(|e| e.to_string())?;
+    store::load_store(logfile).map_err(error::Error::StoreError).map_err(|e| e.to_string())
 }
 
 
-pub fn main() -> Result<(), error::Error> {
-    let logfile = get_logfile()?;
-    let store = store::load_store(logfile).map_err(error::Error::StoreError)?;
 
+pub fn main() -> Result<(), error::Error> {
     
     let mut settings = Settings::default();
     settings.window.size = (UI_WIDTH,UI_STARTING_HEIGHT);
     settings.default_text_size = UI_DEFAULT_TEXT_SIZE;
-    settings.flags = store;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }
