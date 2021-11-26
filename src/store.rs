@@ -9,9 +9,9 @@
 // keyword = 'k' # keyword used for mozilla style query strings
 use std::fs;
 use std::fmt;
+use std::error;
 use std::path::Path;
 use toml;
-use std::error;
 use serde::Deserialize;
 
 
@@ -24,7 +24,7 @@ const FULL_TAG_W : u32 = 2;
 
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
     IOError(std::io::Error),
     ParseError(toml::de::Error),
     CustomError(String)
@@ -51,23 +51,19 @@ struct RawStoreEntry {
 }
 
 #[derive(Debug,Eq,PartialEq)]
-struct  StoreEntry {
-    name : String,
-    entry : EntryType,
-    tags : Vec<String>,
+pub struct  StoreEntry {
+    pub name : String,
+    pub entry : EntryType,
+    pub tags : Vec<String>,
 }
 
 #[derive(Debug,Eq,PartialEq)]
-enum EntryType {
+pub enum EntryType {
     FileEntry(String),
     DirectoryEntry(String),
 }
 
 impl StoreEntry {
-
-    fn _tags(&self) -> impl Iterator<Item=&String> {
-	self.tags.iter()
-    }
 
 
     // parse a toml value into a store entry
@@ -131,13 +127,13 @@ impl StoreEntry {
     
 }
 
-#[derive(Debug)]
-struct Store {
+#[derive(Debug, Default)]
+pub struct Store {
     entries : Vec<StoreEntry>, 
 }
 
 impl Store {
-    fn find_matches(&self, query : &str) -> Vec<&StoreEntry> {
+    pub fn find_matches(&self, query : &str) -> Vec<&StoreEntry> {
 
 	// get indicies of all entries with scores greater than zero
 	let mut matches : Vec<_> = self.entries.iter()
@@ -153,9 +149,11 @@ impl Store {
 	// get references to entries in sorted order
 	matches.iter().map(|s| &self.entries[s.0]).collect()
     }
+
+    pub fn len(&self) -> usize {self.entries.len()}
 }
 
-fn load_store<P:AsRef<Path>>(path : P) -> Result<Store, Error> {
+pub fn load_store<P:AsRef<Path>>(path : P) -> Result<Store, Error> {
     match fs::read_to_string(path) {
 	Ok(txt) => parse_store(&txt),
 	Err(err) => Err(Error::IOError(err))
@@ -293,6 +291,7 @@ mod tests {
 
 	
     }
+
 
     
 
