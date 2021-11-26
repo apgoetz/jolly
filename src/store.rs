@@ -14,6 +14,15 @@ use toml;
 use std::error;
 use serde::Deserialize;
 
+
+
+const PARTIAL_NAME_W : u32 = 2;
+const FULL_NAME_W : u32 = 4;
+const PARTIAL_TAG_W : u32 = 1;
+const FULL_TAG_W : u32 = 2;
+
+
+
 #[derive(Debug)]
 enum Error {
     IOError(std::io::Error),
@@ -60,6 +69,8 @@ impl StoreEntry {
 	self.tags.iter()
     }
 
+
+    // parse a toml value into a store entry
     fn from_value(name: String, val : toml::Value) -> Result<Self, Error> {
 	let raw_entry : RawStoreEntry = val.try_into().map_err(|e| Error::ParseError(e))?;
 	let path = Path::new(&name);
@@ -101,6 +112,23 @@ impl StoreEntry {
 	})
     }
 
+    // score an entry based on information
+    fn score(&self, query: &str) -> u32 {
+
+	// calculate measures of a match
+
+	let full_name = self.name == query;
+	let partial_name =  !full_name && self.name.contains(query);
+	
+	let full_tag = self.tags.iter().any(|t| t == query);
+	let partial_tag = !full_tag && self.tags.iter().any(|t| t.contains(query));
+
+	// calculate "score" as crossproduct of weights and values 
+	let vals    = [partial_name,   full_name,   partial_tag,   full_tag].map(u32::from);
+	let weights = [PARTIAL_NAME_W, FULL_NAME_W, PARTIAL_TAG_W, FULL_TAG_W];
+	vals.iter().zip(weights).map(|(&a,b)|a * b).reduce(|a,b|a+b).unwrap()
+    }
+    
 }
 
 #[derive(Debug)]
@@ -109,8 +137,21 @@ struct Store {
 }
 
 impl Store {
-    fn _find_matches(_query : &str) -> Vec<&StoreEntry> {
-	todo!()
+    fn find_matches(&self, query : &str) -> Vec<&StoreEntry> {
+
+	// get indicies of all entries with scores greater than zero
+	let mut matches : Vec<_> = self.entries.iter()
+	    .map(|entry|entry.score(query))
+	    .enumerate()
+	    .filter(|s| s.1 > 0)
+	    .rev()		// flip order: now we prefer LAST entries in file
+	    .collect::<Vec<_>>();
+
+	// sort by score
+	matches.sort_by(|a,b| b.1.partial_cmp(&a.1).unwrap());
+
+	// get references to entries in sorted order
+	matches.iter().map(|s| &self.entries[s.0]).collect()
     }
 }
 
@@ -147,6 +188,60 @@ mod tests {
 	assert_eq!(store.entries.len(), 0)
     }
 
+    #[test]
+    fn entry_score() {
+	let entry = StoreEntry {
+	    name: "foo.txt".to_string(),
+	    entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+	    tags: ["foo", "bar", "baz"].into_iter().map(str::to_string).collect()
+	};
+
+	assert_eq!(entry.score("fo"), PARTIAL_NAME_W + PARTIAL_TAG_W);
+	assert_eq!(entry.score("foo"), PARTIAL_NAME_W + FULL_TAG_W);
+	assert_eq!(entry.score("foo.txt"), FULL_NAME_W);
+
+	assert_eq!(entry.score("ba"), PARTIAL_TAG_W);
+	assert_eq!(entry.score("baz"), FULL_TAG_W);
+    }
+
+    #[test]
+    fn find_entries() {
+	let toml = r#"['foo']
+		      tags = ["foo", 'bar', 'quu']
+                      location = "test/location"
+
+                      ['asdf']
+                      tags = ["bar", "quux"]
+                      location = "test/location""#;
+
+	let store = parse_store(toml).unwrap();
+
+
+	let tests = [
+	    ("fo", vec!["foo"]),
+	    ("foo", vec!["foo"]),
+	    ("bar", vec!["asdf", "foo"]), // all things being equal, prefer "newer" entries
+	    ("asd", vec!["asdf"]),
+	    ("asdf", vec!["asdf"]),
+	    ("quu", vec!["foo", "asdf"]), // since quu is a full match for foo entry, it ranks higher
+	    ("quux", vec!["asdf"]), 
+	    ];
+
+	for (query, results) in tests {
+	    
+	    let matches = store.find_matches(query);
+	    assert_eq!(results.len(), matches.len(), "test: {} -> {:?}", query, results);
+
+	    let r_entries = results.into_iter().map(|e|store.entries.iter().find(|e2|e2.name == e).unwrap());
+
+	    
+
+	    for (l,r) in matches.into_iter().zip(r_entries) {
+		assert_eq!(l,r, "lscore: {} rscore: {}", l.score(query), r.score(query));
+	    }
+	}
+    }
+    
     #[test]
     fn parse_single_file_entry() {
 
