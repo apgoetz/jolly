@@ -1,5 +1,5 @@
 use iced::{executor, Element, Application, Settings, TextInput, text_input, Command, };
-use iced_native::{command,window};
+use iced_native::{command,window, subscription, event, keyboard};
 mod store;
 
 // constants used to define window shape
@@ -13,11 +13,19 @@ const UI_ENDING_HEIGHT : u32 = 11*UI_STARTING_HEIGHT;
 #[derive(Debug, Clone)]
 enum Message {
     SearchTextChanged(String),
+    ExternalEvent(event::Event)
 }
+
+const ESCAPE_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyReleased {
+    key_code: keyboard::KeyCode::Escape,
+    modifiers: keyboard::Modifiers::empty(),
+});
+
 #[derive(Default)]
 struct Jolly {
     searchtext: String,
-    searchtextstate: text_input::State
+    searchtextstate: text_input::State,
+    should_exit: bool,
 }
 
 impl Application for Jolly {
@@ -36,9 +44,30 @@ impl Application for Jolly {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message>{
         match message {
-	    Message::SearchTextChanged(txt) => self.searchtext = txt
+	    Message::SearchTextChanged(txt) => {
+		self.searchtext = txt;
+		Command::single(command::Action::Window(window::Action::Resize{width:UI_WIDTH, height: UI_ENDING_HEIGHT}))
+	    }
+	    Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
+		println!("{:?}", path);
+		Command::none()
+	    }
+	    Message::ExternalEvent(e) if e == ESCAPE_EVENT => {
+		println!("escape pressed");
+		self.should_exit = true;
+		Command::none()
+	    }
+	    _ => Command::none()
 	}
-	Command::single(command::Action::Window(window::Action::Resize{width:UI_WIDTH, height: UI_ENDING_HEIGHT}))
+	
+    }
+
+    fn should_exit(&self) -> bool {
+	self.should_exit
+    }
+    
+    fn subscription(&self) -> iced::Subscription<Message> {
+	subscription::events().map(Message::ExternalEvent)
     }
 
     fn view(&mut self) -> Element<Self::Message> {
