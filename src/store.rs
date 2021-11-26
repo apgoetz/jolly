@@ -63,13 +63,15 @@ impl StoreEntry {
     fn from_value(name: String, val : toml::Value) -> Result<Self, Error> {
 	let raw_entry : RawStoreEntry = val.try_into().map_err(|e| Error::ParseError(e))?;
 	let path = Path::new(&name);
-	let folder = path.parent();
+	let folder = match path.parent() {
+	    Some(f)  if !f.as_os_str().is_empty() => Some(f),
+	    _ => None
+	};
 
 	let location = match (folder, &raw_entry.location) {
 	    (Some(loc), None) => loc,
 	    (None, Some(loc)) => Path::new(loc),
-	    (Some(l1), Some(l2)) if !l1.as_os_str().is_empty() => return Err(Error::CustomError(format!("multiple locations specified, loc1: {:?}, loc2: {:?}", l1,l2))),
-	    (Some(l1), Some(l2)) if l1.as_os_str().is_empty() => Path::new(l2),
+	    (Some(l1), Some(l2)) => return Err(Error::CustomError(format!("multiple locations specified, loc1: {:?}, loc2: {:?}", l1,l2))),
 	    _ => return Err(Error::CustomError("No location specified".to_string())),
 	};
 
