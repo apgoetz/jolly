@@ -1,10 +1,11 @@
 use iced::{executor, Element, Application, Settings, TextInput, text_input, Command, };
-use iced_native::{command,window, subscription, event, keyboard};
+use iced_native::{command,window, subscription, event, keyboard, widget};
 use std::path;
 use blocking;
 
 mod store;
 mod error;
+mod display;
 
 // constants used to define window shape
 const UI_DEFAULT_TEXT_SIZE : u16 = 20;
@@ -18,7 +19,8 @@ const LOGFILE_NAME : &str = "jolly.toml";
 enum Message {
     StoreLoaded(Result<store::Store, String>),
     SearchTextChanged(String),
-    ExternalEvent(event::Event)
+    ExternalEvent(event::Event),
+    EntrySelected(usize),
 }
 
 const ESCAPE_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyReleased {
@@ -39,6 +41,14 @@ impl Default for StoreLoadedState {
     }
 }
 
+impl StoreLoadedState {
+    fn store(&self) -> Option<&store::Store> {
+	match self {
+	    StoreLoadedState::LoadSucceeded(s,_) => Some(s),
+	    _ => None
+	}
+    }
+}
 
 #[derive(Default)]
 struct Jolly {
@@ -109,10 +119,27 @@ impl Application for Jolly {
 	    LoadSucceeded(_,msg) => msg,
 	};
 
-        TextInput::new(&mut self.searchtextstate,
-		       default_txt,
-		       &self.searchtext,
-	Message::SearchTextChanged).padding(UI_DEFAULT_PADDING).into()
+
+	let mut column = widget::column::Column::new();
+        column = column.push(TextInput::new(&mut self.searchtextstate,
+				   default_txt,
+				   &self.searchtext,
+				   Message::SearchTextChanged).padding(UI_DEFAULT_PADDING));
+
+	
+	if let Some(store) = self.store_state.store() {
+	    let matches = store.find_matches(&self.searchtext);
+	    for (i,e) in matches.into_iter().enumerate() {
+		if i >= 5 {break;}
+		let entry : iced_native::Element<_,_> = match i {
+		    0 => display::Entry::new(e).selected().into(),
+		    _ => display::Entry::new(e).into(),
+		};
+		
+		column = column.push(entry.map(move |_| Message::EntrySelected(i)));
+	    }
+	}
+	column.into()
     }
 }
 

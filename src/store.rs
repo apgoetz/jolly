@@ -11,6 +11,7 @@ use std::fs;
 use std::fmt;
 use std::error;
 use std::path::Path;
+use std::hash::Hash;
 use toml;
 use serde::Deserialize;
 
@@ -53,14 +54,14 @@ struct RawStoreEntry {
     tags : Option<Vec<String>>,
 }
 
-#[derive(Debug,Eq,PartialEq, Clone)]
+#[derive(Debug,Eq,PartialEq, Clone, Hash)]
 pub struct  StoreEntry {
     pub name : String,
     pub entry : EntryType,
     pub tags : Vec<String>,
 }
 
-#[derive(Debug,Eq,PartialEq, Clone)]
+#[derive(Debug,Eq,PartialEq, Clone, Hash)]
 pub enum EntryType {
     FileEntry(String),
     DirectoryEntry(String),
@@ -114,8 +115,10 @@ impl StoreEntry {
     // score an entry based on information
     fn score(&self, query: &str) -> u32 {
 
-	// calculate measures of a match
 
+	if query.len() == 0 {return 0;}
+
+	// calculate measures of a match
 	let full_name = self.name == query;
 	let partial_name =  !full_name && self.name.contains(query);
 	
@@ -203,6 +206,7 @@ mod tests {
 
 	assert_eq!(entry.score("ba"), PARTIAL_TAG_W);
 	assert_eq!(entry.score("baz"), FULL_TAG_W);
+	assert_eq!(entry.score(""), 0);
     }
 
     #[test]
@@ -225,7 +229,8 @@ mod tests {
 	    ("asd", vec!["asdf"]),
 	    ("asdf", vec!["asdf"]),
 	    ("quu", vec!["foo", "asdf"]), // since quu is a full match for foo entry, it ranks higher
-	    ("quux", vec!["asdf"]), 
+	    ("quux", vec!["asdf"]),
+	    ("", vec![])
 	    ];
 
 	for (query, results) in tests {
