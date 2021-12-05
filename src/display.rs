@@ -109,7 +109,6 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 	    event::Event::Mouse(mouse::Event::ButtonReleased(button))
 		if button == mouse::Button::Left => {
 		    if layout.bounds().contains(cursor_position) {
-			println!("clicked on {}", self.entry.name);
 			messages.push(Message::Selected);
 			event::Status::Captured
 		    } else {
@@ -120,7 +119,6 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 		if (code == keyboard::KeyCode::NumpadEnter ||
 		    code == keyboard::KeyCode::Enter) &&
 		    self.selected {
-			println!("pressed enter on {}", self.entry.name);
 			messages.push(Message::Selected);
 			event::Status::Captured
 		    } else {
