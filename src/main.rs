@@ -216,6 +216,7 @@ pub fn main() -> Result<(), error::Error> {
     let mut settings = Settings::default();
     settings.window.size = (UI_WIDTH,UI_STARTING_HEIGHT);
     settings.window.decorations = false;
+    settings.window.resizable = false;
     settings.default_text_size = UI_DEFAULT_TEXT_SIZE;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }

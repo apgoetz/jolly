@@ -58,7 +58,7 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 	viewport: &iced_native::Rectangle
     )  {
 	// viewport is rectangle covering entire UI that is being rendered
-	// layout 
+	// layout is the shape that we have  been budgeted
 	let mut color = iced_native::Color::BLACK;
 	if self.selected {
 	    let bounds = layout.bounds().intersection(viewport).unwrap_or(layout.bounds());
