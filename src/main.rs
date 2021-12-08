@@ -5,6 +5,7 @@ use blocking;
 
 mod store;
 mod error;
+mod search_results;
 mod display;
 
 // constants used to define window shape
@@ -20,21 +21,13 @@ enum Message {
     StoreLoaded(Result<store::Store, String>),
     SearchTextChanged(String),
     ExternalEvent(event::Event),
-    EntrySelected(usize),
+    EntrySelected(store::StoreEntry),
 }
 
-const ESCAPE_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyReleased {
+const ESCAPE_EVENT : keyboard::Event = keyboard::Event::KeyReleased {
     key_code: keyboard::KeyCode::Escape,
     modifiers: keyboard::Modifiers::empty(),
-});
-const UP_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyPressed {
-    key_code: keyboard::KeyCode::Up,
-    modifiers: keyboard::Modifiers::empty(),
-});
-const DOWN_EVENT : event::Event = event::Event::Keyboard(keyboard::Event::KeyPressed {
-    key_code: keyboard::KeyCode::Down,
-    modifiers: keyboard::Modifiers::empty(),
-});
+};
 
 enum StoreLoadedState {
     Pending,
@@ -63,7 +56,7 @@ struct Jolly {
     searchtextstate: text_input::State,
     should_exit: bool,
     store_state: StoreLoadedState,
-    selected: usize
+    search_results: search_results::SearchResults,
 }
 
 impl Application for Jolly {
@@ -87,9 +80,10 @@ impl Application for Jolly {
 	    Message::SearchTextChanged(txt) if matches!(self.store_state, StoreLoadedState::LoadSucceeded(_,_)) => {
 		self.searchtext = txt;
 		if let Some(store) = self.store_state.store() {
-		    let matches = store.find_matches(&self.searchtext);
+		    let matches = store.find_matches(&self.searchtext).into_iter();
 		    // unwrap will never panic since UI_MAX_RESULTS is const
 		    let max_num = UI_MAX_RESULTS.min(matches.len().try_into().unwrap());
+		    self.search_results = search_results::SearchResults::new(matches.take(max_num.try_into().unwrap()));
 		    Command::single(command::Action::Window(window::Action::Resize{width:UI_WIDTH, height: (1+max_num)*UI_STARTING_HEIGHT}))
 		} else {
 		    Command::none()
@@ -99,28 +93,11 @@ impl Application for Jolly {
 		println!("{:?}", path);
 		Command::none()
 	    }
-	    Message::ExternalEvent(e) if e == ESCAPE_EVENT => {
-
-		self.should_exit = true;
-		Command::none()
-	    }
-	    Message::ExternalEvent(e) if e == UP_EVENT => {
-
-		if self.selected > 0 {
-		    self.selected -= 1;
+	    Message::ExternalEvent(event::Event::Keyboard(e)) => {
+		if e == ESCAPE_EVENT {
+		    self.should_exit = true;
 		}
-		Command::none()
-	    }
-	    Message::ExternalEvent(e) if e == DOWN_EVENT => {
-
-		if let Some(store) = self.store_state.store() {
-		    let matches = store.find_matches(&self.searchtext);
-		    // unwrap will never panic since UI_MAX_RESULTS is const
-		    let max_num = matches.len().min(UI_MAX_RESULTS.try_into().unwrap());
-		    if self.selected + 1 < max_num {
-			self.selected += 1;
-		    }
-		}
+		self.search_results.handle_kb(e);
 		Command::none()
 	    }
 	    Message::StoreLoaded(Err(err)) => {
@@ -132,12 +109,10 @@ impl Application for Jolly {
 		self.store_state = StoreLoadedState::LoadSucceeded(store, msg);
 		Command::none()
 	    }
-	    Message::EntrySelected(i) => {
-		if let Some(store) = self.store_state.store() {
-		    let entry = store.find_matches(&self.searchtext)[i];
-		    println!("selected entry: {:?}", entry);
-		    self.should_exit = true;
-		}
+	    Message::EntrySelected(entry) => {
+		println!("selected entry: {:?}", entry);
+		self.should_exit = true;
+
 		Command::none()
 	    }
 	    _ => Command::none()
@@ -167,21 +142,7 @@ impl Application for Jolly {
 				   default_txt,
 				   &self.searchtext,
 				   Message::SearchTextChanged).padding(UI_DEFAULT_PADDING));
-
-	
-	if let Some(store) = self.store_state.store() {
-	    let matches = store.find_matches(&self.searchtext);
-	    for (i,e) in matches.into_iter().enumerate() {
-		// unwrap will never panic since UI_MAX_RESULTS is const
-		if i >= UI_MAX_RESULTS.try_into().unwrap() {break;}
-		let entry : iced_native::Element<_,_> = match i {
-		    i if i == self.selected => display::Entry::new(e).selected().into(),
-		    _ => display::Entry::new(e).into(),
-		};
-		
-		column = column.push(entry.map(move |_| Message::EntrySelected(i)));
-	    }
-	}
+	column = column.push(self.search_results.view(Message::EntrySelected));
 	column.into()
     }
 }

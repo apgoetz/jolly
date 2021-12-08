@@ -3,9 +3,7 @@ use iced_native::{widget, event, renderer, layout, text, mouse, keyboard};
 use std::hash::Hash;
 use crate::store;
 
-pub enum Message  {
-    Selected
-}
+type Message = store::StoreEntry;
 
 #[derive(Debug)]
 pub struct Entry<'a> {
@@ -109,7 +107,7 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 	    event::Event::Mouse(mouse::Event::ButtonReleased(button))
 		if button == mouse::Button::Left => {
 		    if layout.bounds().contains(cursor_position) {
-			messages.push(Message::Selected);
+			messages.push(self.entry.clone());
 			event::Status::Captured
 		    } else {
 			event::Status::Ignored
@@ -119,7 +117,7 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 		if (code == keyboard::KeyCode::NumpadEnter ||
 		    code == keyboard::KeyCode::Enter) &&
 		    self.selected {
-			messages.push(Message::Selected);
+			messages.push(self.entry.clone());
 			event::Status::Captured
 		    } else {
 			event::Status::Ignored
