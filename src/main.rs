@@ -70,7 +70,6 @@ impl Jolly {
     }
     
     fn handle_selection(&mut self, entry: store::StoreEntry ) -> Command<<Jolly as Application>::Message> {
-	println!("selected entry: {:?}", entry);
 
 	let result = match entry.entry {
 	    store::EntryType::FileEntry(s) => {
@@ -80,7 +79,7 @@ impl Jolly {
 		return self.move_to_err(error::Error::CustomError("Folder types are unimplemented!".to_string()))
 	    
 	};
-	println!("{:?}", result);
+
 	if let Err(e) = result.map_err(error::Error::PlatformError) {
 	    self.move_to_err(e)
 	} else {
