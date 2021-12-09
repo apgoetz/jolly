@@ -30,7 +30,7 @@ where  {
 		self.selected -= 1;
 	    }
 	}
-	if code == keyboard::KeyCode::Up  {
+	if code == keyboard::KeyCode::Down  {
 	    let max_num = self.entries.len();
 	    if self.selected + 1 < max_num {
 		self.selected += 1;
