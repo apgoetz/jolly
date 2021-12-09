@@ -67,7 +67,7 @@ impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 		    border_width: 1.0,
 		    border_color: iced_native::Color::TRANSPARENT
 		},
-		iced_native::Color::from_rgb8(199, 219, 240)
+		iced_native::Color::from_rgb8(92, 144, 226)
 	    );
 	    color = iced_native::Color::WHITE;
 	}
