@@ -73,31 +73,20 @@ impl StoreEntry {
     // parse a toml value into a store entry
     fn from_value(name: String, val : toml::Value) -> Result<Self, Error> {
 	let raw_entry : RawStoreEntry = val.try_into().map_err(|e| Error::ParseError(e))?;
-	let path = Path::new(&name);
-	let folder = match path.parent() {
-	    Some(f)  if !f.as_os_str().is_empty() => Some(f),
-	    _ => None
-	};
 
-	let location = match (folder, &raw_entry.location) {
-	    (Some(loc), None) => loc,
-	    (None, Some(loc)) => Path::new(loc),
-	    (Some(l1), Some(l2)) => return Err(Error::CustomError(format!("multiple locations specified, loc1: {:?}, loc2: {:?}", l1,l2))),
-	    _ => return Err(Error::CustomError("No location specified".to_string())),
-	};
-
-	let filename = path.file_name().ok_or(Error::CustomError("no filename specified for key".to_string()))?;
-	let whole_path = location.join(filename);
+	let location  = match &raw_entry.location {
+	    Some(loc) => loc,
+	    None => &name
+	}.to_string();
+	
 
 	let entry;
-	let err_func = |o| Error::CustomError(format!("directory path is not utf: {:?}", o));
-
 	// if it is a directory, mark it as such
-	if whole_path.is_dir() {
-	    entry = EntryType::DirectoryEntry(whole_path.into_os_string().into_string().map_err(err_func)?);
+	if Path::new(&location).is_dir() {
+	    entry = EntryType::DirectoryEntry(location);
 	} else {
 	    //otherwise, treat it as a file, although the path may not exist
-	    entry = EntryType::FileEntry(whole_path.into_os_string().into_string().map_err(err_func)?);
+	    entry = EntryType::FileEntry(location);
 	}
 
 	let tags = match raw_entry.tags {
@@ -257,7 +246,7 @@ mod tests {
 		      
 		      StoreEntry {
 			  name: "foo.txt".to_string(),
-			  entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+			  entry: EntryType::FileEntry("test/location".to_string()),
 			  tags: ["foo", "bar", "baz"].into_iter().map(str::to_string).collect()
 		      }),
 		     (r#"['foo.txt']
@@ -265,7 +254,7 @@ mod tests {
 		      
 		      StoreEntry {
 			  name: "foo.txt".to_string(),
-			  entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+			  entry: EntryType::FileEntry("test/location".to_string()),
 			  tags: [].into_iter().map(str::to_string).collect()
 		      }),
 		     (r#"['test/location/foo.txt']
