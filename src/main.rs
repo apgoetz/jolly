@@ -1,3 +1,4 @@
+#![windows_subsystem = "windows"]
 use iced::{executor, Element, Application, Settings, TextInput, text_input, Command, };
 use iced_native::{command,window, subscription, event, keyboard, widget};
 use std::path;

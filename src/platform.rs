@@ -20,29 +20,41 @@ impl fmt::Display for Error {
     }
 }
 
+struct PlatformOpts {
+       open_cmd : &'static str,
+       ignore_errors : bool,       
+}
+
 #[cfg(target_os = "macos")]
-const OPEN_CMD : &str = "open";
+const OPTS : PlatformOpts = PlatformOpts {
+      open_cmd : "open",
+      ignore_errors: false,
+};
 
 #[cfg(target_os = "windows")]
-const OPEN_CMD : &str = "start";
+const OPTS : PlatformOpts = PlatformOpts {
+      open_cmd : "explorer.exe",
+      ignore_errors: true,
+};
 
 #[cfg(target_os = "linux")]
-const OPEN_CMD : &str = "xdg-open";
+const OPTS : PlatformOpts = PlatformOpts {
+      open_cmd : "xdg-open",
+      ignore_errors: false,
+};
 
 
 pub fn open_file<P:AsRef<Path>>(path : P) -> Result<(), Error> {
-    let result = Command::new(OPEN_CMD)
+
+    let result = Command::new(OPTS.open_cmd)
 	.arg(path.as_ref().as_os_str())
 	.stdin(Stdio::null())
 	.stdout(Stdio::null())
 	.stderr(Stdio::null())
 	.status().map_err(Error::IOError)?;
-    if result.success() {
+    if result.success() || OPTS.ignore_errors {
 	Ok(())
     } else {
 	Err(Error::OpenError(path.as_ref().display().to_string()))
     }
 }
-
-
-
