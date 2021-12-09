@@ -7,6 +7,7 @@ mod store;
 mod error;
 mod search_results;
 mod display;
+mod platform;
 
 // constants used to define window shape
 const UI_DEFAULT_TEXT_SIZE : u16 = 20;
@@ -57,6 +58,36 @@ struct Jolly {
     should_exit: bool,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
+}
+
+impl Jolly {
+
+    fn move_to_err(&mut self, err: error::Error) -> Command<<Jolly as Application>::Message> {
+	self.store_state = StoreLoadedState::LoadFailed(err.to_string());
+	self.searchtext = String::new();
+	self.search_results = Default::default();
+	Command::single(command::Action::Window(window::Action::Resize{width:UI_WIDTH, height: UI_STARTING_HEIGHT}))
+    }
+    
+    fn handle_selection(&mut self, entry: store::StoreEntry ) -> Command<<Jolly as Application>::Message> {
+	println!("selected entry: {:?}", entry);
+
+	let result = match entry.entry {
+	    store::EntryType::FileEntry(s) => {
+		platform::open_file(&s)
+	    }
+	    store::EntryType::DirectoryEntry(_) =>
+		return self.move_to_err(error::Error::CustomError("Folder types are unimplemented!".to_string()))
+	    
+	};
+	println!("{:?}", result);
+	if let Err(e) = result.map_err(error::Error::PlatformError) {
+	    self.move_to_err(e)
+	} else {
+	    self.should_exit = true;
+	    Command::none()
+	}
+    }
 }
 
 impl Application for Jolly {
@@ -110,10 +141,8 @@ impl Application for Jolly {
 		Command::none()
 	    }
 	    Message::EntrySelected(entry) => {
-		println!("selected entry: {:?}", entry);
-		self.should_exit = true;
 
-		Command::none()
+		self.handle_selection(entry)
 	    }
 	    _ => Command::none()
 	}
@@ -173,7 +202,6 @@ fn get_store() -> Result<store::Store, String>{
 
 
 pub fn main() -> Result<(), error::Error> {
-    
     let mut settings = Settings::default();
     settings.window.size = (UI_WIDTH,UI_STARTING_HEIGHT);
     settings.window.decorations = false;
