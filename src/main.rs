@@ -75,9 +75,8 @@ impl Jolly {
 	    store::EntryType::FileEntry(s) => {
 		platform::open_file(&s)
 	    }
-	    store::EntryType::DirectoryEntry(_) =>
-		return self.move_to_err(error::Error::CustomError("Folder types are unimplemented!".to_string()))
-	    
+	    store::EntryType::DirectoryEntry(s) =>
+		platform::open_file(&s)
 	};
 
 	if let Err(e) = result.map_err(error::Error::PlatformError) {
