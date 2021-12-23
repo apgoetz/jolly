@@ -60,7 +60,6 @@ pub struct StoreEntry {
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum EntryType {
     FileEntry(String),
-    DirectoryEntry(String),
 }
 
 impl StoreEntry {
@@ -74,14 +73,7 @@ impl StoreEntry {
         }
         .to_string();
 
-        let entry;
-        // if it is a directory, mark it as such
-        if Path::new(&location).is_dir() {
-            entry = EntryType::DirectoryEntry(location);
-        } else {
-            //otherwise, treat it as a file, although the path may not exist
-            entry = EntryType::FileEntry(location);
-        }
+        let entry = EntryType::FileEntry(location);
 
         let tags = match raw_entry.tags {
             Some(tags) => tags,
@@ -317,7 +309,7 @@ mod tests {
         );
         let expected_entry = StoreEntry {
             name: dirname.to_string(),
-            entry: EntryType::DirectoryEntry(dirname.to_string()),
+            entry: EntryType::FileEntry(dirname.to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
                 .map(str::to_string)
