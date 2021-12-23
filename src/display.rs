@@ -117,6 +117,7 @@ where
                     event::Status::Ignored
                 }
             }
+            // if return key is pressed
             event::Event::Keyboard(keyboard::Event::KeyReleased {
                 key_code: code,
                 modifiers: _,
@@ -124,6 +125,15 @@ where
                 if (code == keyboard::KeyCode::NumpadEnter || code == keyboard::KeyCode::Enter)
                     && self.selected
                 {
+                    messages.push(self.entry.clone());
+                    event::Status::Captured
+                } else {
+                    event::Status::Ignored
+                }
+            }
+            // somehow on linux, the numpad key is "carriage return"
+            event::Event::Keyboard(keyboard::Event::CharacterReceived(c)) => {
+                if (c == '\r') && self.selected {
                     messages.push(self.entry.clone());
                     event::Status::Captured
                 } else {
