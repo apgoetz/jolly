@@ -165,7 +165,7 @@ impl Application for Jolly {
     fn view(&mut self) -> Element<Self::Message> {
         use StoreLoadedState::*;
         let default_txt = match &self.store_state {
-            Pending => "Loading Message",
+            Pending => "Loading Bookmarks... ",
             LoadFailed(msg) => msg,
             LoadSucceeded(_, msg) => msg,
         };
