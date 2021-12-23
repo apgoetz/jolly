@@ -1,10 +1,10 @@
 // jolly error types
 
-use super::store;
 use super::platform;
-use std::fmt;
-use std::error;
+use super::store;
 use iced;
+use std::error;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
@@ -15,14 +15,14 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f:&mut fmt::Formatter<'_>) -> fmt::Result {
-	write!(f, "Error: ")?;
-	match self {
-	    Error::StoreError(e) => e.fmt(f),
-	    Error::IcedError(e) => e.fmt(f),
-	    Error::PlatformError(e) => e.fmt(f),
-	    Error::CustomError(s) => f.write_str(s)
-	}
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Error: ")?;
+        match self {
+            Error::StoreError(e) => e.fmt(f),
+            Error::IcedError(e) => e.fmt(f),
+            Error::PlatformError(e) => e.fmt(f),
+            Error::CustomError(s) => f.write_str(s),
+        }
     }
 }
 
