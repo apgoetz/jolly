@@ -50,7 +50,7 @@ where
     fn draw(
         &self,
         renderer: &mut Renderer,
-        style: &renderer::Style,
+        _style: &renderer::Style,
         layout: layout::Layout<'_>,
         _cursor_position: iced_native::Point,
         viewport: &iced_native::Rectangle,
@@ -58,11 +58,12 @@ where
         // viewport is rectangle covering entire UI that is being rendered
         // layout is the shape that we have  been budgeted
         let mut color = iced_native::Color::BLACK;
+        let bounds = layout
+            .bounds()
+            .intersection(viewport)
+            .unwrap_or(layout.bounds());
+
         if self.selected {
-            let bounds = layout
-                .bounds()
-                .intersection(viewport)
-                .unwrap_or(layout.bounds());
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: bounds,
@@ -75,17 +76,19 @@ where
             color = iced_native::Color::WHITE;
         }
 
-        widget::text::draw(
-            renderer,
-            style,
-            layout,
-            &self.entry.name,
-            Default::default(),
-            None,
-            Some(color),
-            iced_native::alignment::Horizontal::Left,
-            iced_native::alignment::Vertical::Center,
-        );
+        renderer.fill_text(text::Text {
+            content: &self.entry.name,
+            size: renderer.default_size() as f32,
+            bounds: iced_native::Rectangle {
+                x: bounds.x + 5.0,
+                y: bounds.center_y(),
+                ..bounds
+            },
+            color: color,
+            font: Default::default(),
+            horizontal_alignment: iced_native::alignment::Horizontal::Left,
+            vertical_alignment: iced_native::alignment::Vertical::Center,
+        });
     }
 
     fn hash_layout(&self, state: &mut iced_native::Hasher) {
