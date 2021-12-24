@@ -128,6 +128,10 @@ impl Application for Jolly {
                     Command::none()
                 }
             }
+            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
+                self.should_exit = true;
+                Command::none()
+            }
             Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
                 println!("{:?}", path);
                 Command::none()
