@@ -45,8 +45,6 @@ impl error::Error for Error {}
 #[derive(Deserialize, Debug)]
 struct RawStoreEntry {
     location: Option<String>,
-    url: Option<String>,
-    system: Option<String>,
     tags: Option<Vec<String>>,
 }
 

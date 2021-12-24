@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use blocking;
 use iced::{executor, text_input, Application, Command, Element, Settings, TextInput};
 use iced_native::{command, event, keyboard, subscription, widget, window};
