@@ -12,5 +12,7 @@ toml = { version = "0.5.8", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 dirs = "4"
 blocking = "1"
+opener = "0.5.0"
+
 [dev-dependencies] 
 tempfile = "3"
