@@ -4,9 +4,10 @@
 // ['filename.txt'] # filename or name for bookmark, can also contain path
 // tags = ['foo', 'text', 'baz']
 // location = '/optional/path/to/filename'
-// url = 'http://example.com' #can contain mozilla style query string (single %s)
+// url = 'http://example.com' #can contain mozilla style query string (single %s). Defaults to escape = true
 // system = 'cmd to run'# can contain mozilla style query string (single %s)
 // keyword = 'k' # keyword used for mozilla style query strings
+// escape = true # only valid for keyword entries, determines if query string is escaped.
 use serde::Deserialize;
 use std::error;
 use std::fmt;
@@ -14,6 +15,7 @@ use std::fs;
 use std::hash::Hash;
 use std::path::Path;
 use toml;
+use urlencoding;
 
 use crate::platform;
 
@@ -50,9 +52,18 @@ impl error::Error for Error {}
 #[derive(Deserialize, Debug)]
 struct RawStoreEntry {
     location: Option<String>,
+    url: Option<String>,
     system: Option<String>,
     keyword: Option<String>,
+    escape: Option<bool>,
     tags: Option<Vec<String>>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+enum Keyword {
+    None,
+    RawKeyword(String),
+    EscapedKeyword(String),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -60,23 +71,35 @@ pub struct StoreEntry {
     name: String,
     entry: EntryType,
     tags: Vec<String>,
-    keyword: Option<String>,
+    keyword: Keyword,
 }
 
 struct SearchResult<'a> {
+    entry: &'a StoreEntry,
     query: &'a str,
     param: &'a str,
 }
 
 impl<'a> SearchResult<'a> {
-    fn new(searchtext: &'a str) -> Self {
+    fn new(entry: &'a StoreEntry, searchtext: &'a str) -> Self {
         let (query, param) = if let Some((front, back)) = searchtext.split_once(char::is_whitespace)
         {
             (front, back)
         } else {
             (searchtext, "%s")
         };
-        Self { query, param }
+        Self {
+            entry,
+            query,
+            param,
+        }
+    }
+
+    fn escaped_param(&self) -> String {
+        match self.entry.keyword {
+            Keyword::EscapedKeyword(_) => urlencoding::encode(self.param).into_owned(),
+            _ => self.param.to_string(),
+        }
     }
 }
 
@@ -91,18 +114,36 @@ impl StoreEntry {
     fn from_value(name: String, val: toml::Value) -> Result<Self, Error> {
         let raw_entry: RawStoreEntry = val.try_into().map_err(|e| Error::ParseError(e))?;
 
-        let location = match &raw_entry.location {
-            Some(loc) => loc,
-            None => &name,
-        }
-        .to_string();
-        let entry;
-
-        if let Some(s) = raw_entry.system {
-            entry = EntryType::SystemEntry(s);
+        let keyword = if let Some(keyword) = raw_entry.keyword {
+            if raw_entry.url.is_some() || raw_entry.escape.unwrap_or(false) {
+                Keyword::EscapedKeyword(keyword)
+            } else {
+                Keyword::RawKeyword(keyword)
+            }
         } else {
-            entry = EntryType::FileEntry(location);
-        }
+            Keyword::None
+        };
+
+        let is_system = raw_entry.system.is_some();
+
+        let location = match (raw_entry.location, raw_entry.url, raw_entry.system) {
+            (Some(loc), None, None) => loc,
+            (None, Some(loc), None) => loc,
+            (None, None, Some(loc)) => loc,
+            (None, None, None) => name.to_string(),
+            _ => {
+                return Err(Error::CustomError(format!(
+                    "Error with {}: Only allow one of location/url/system",
+                    &name
+                )))
+            }
+        };
+
+        let entry = if is_system {
+            EntryType::SystemEntry(location)
+        } else {
+            EntryType::FileEntry(location)
+        };
 
         let tags = match raw_entry.tags {
             Some(tags) => tags,
@@ -110,25 +151,25 @@ impl StoreEntry {
         };
 
         Ok(StoreEntry {
-            name: name.to_string(),
+            name: name,
             entry: entry,
             tags: tags,
-            keyword: raw_entry.keyword,
+            keyword: keyword,
         })
     }
 
     // score an entry based on information
     fn score(&self, searchtext: &str) -> u32 {
-        let query = SearchResult::new(searchtext).query;
+        let query = SearchResult::new(self, searchtext).query;
 
         if query.len() == 0 {
             return 0;
         }
 
-        let full_keyword = if let Some(k) = &self.keyword {
-            k == query
-        } else {
-            false
+        let full_keyword = match &self.keyword {
+            Keyword::None => false,
+            Keyword::RawKeyword(k) => k == query,
+            Keyword::EscapedKeyword(k) => k == query,
         };
 
         // calculate measures of a match
@@ -157,24 +198,24 @@ impl StoreEntry {
     // format example:
     //
 
-    fn format(&self, fmt_str: &str, searchtext: &str) -> String {
-        if self.keyword.is_none() {
+    fn format<S: AsRef<str>>(&self, fmt_str: &str, searchtext: S) -> String {
+        if self.keyword == Keyword::None {
             return fmt_str.to_string();
         }
 
         fmt_str
             .split("%%")
-            .map(|s| s.replace("%s", searchtext))
+            .map(|s| s.replace("%s", searchtext.as_ref()))
             .collect::<Vec<_>>()
             .join("%")
     }
 
     pub fn formatted_name(&self, searchtext: &str) -> String {
-        self.format(&self.name, SearchResult::new(searchtext).param)
+        self.format(&self.name, SearchResult::new(self, searchtext).param)
     }
 
     pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
-        let param = SearchResult::new(searchtext).param;
+        let param = SearchResult::new(self, searchtext).escaped_param();
         match &self.entry {
             EntryType::FileEntry(s) => platform::open_file(&self.format(s, param)),
             EntryType::SystemEntry(s) => platform::system(&self.format(s, param)),
@@ -249,7 +290,7 @@ mod tests {
     fn entry_score() {
         let entry = StoreEntry {
             name: "foo.txt".to_string(),
-            keyword: None,
+            keyword: Keyword::None,
             entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -324,7 +365,7 @@ mod tests {
                     location = "test/location""#,
                 StoreEntry {
                     name: "foo.txt".to_string(),
-                    keyword: None,
+                    keyword: Keyword::None,
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: ["foo", "bar", "baz"]
                         .into_iter()
@@ -337,7 +378,7 @@ mod tests {
                     location = "test/location""#,
                 StoreEntry {
                     name: "foo.txt".to_string(),
-                    keyword: None,
+                    keyword: Keyword::None,
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                 },
@@ -347,7 +388,7 @@ mod tests {
 		    tags = ["foo", 'bar', 'baz']"#,
                 StoreEntry {
                     name: "test/location/foo.txt".to_string(),
-                    keyword: None,
+                    keyword: Keyword::None,
                     entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
                     tags: ["foo", "bar", "baz"]
                         .into_iter()
@@ -386,7 +427,7 @@ mod tests {
         );
         let expected_entry = StoreEntry {
             name: dirname.to_string(),
-            keyword: None,
+            keyword: Keyword::None,
             entry: EntryType::SystemEntry("foo bar".to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -412,7 +453,7 @@ mod tests {
         );
         let expected_entry = StoreEntry {
             name: dirname.to_string(),
-            keyword: None,
+            keyword: Keyword::None,
             entry: EntryType::FileEntry(dirname.to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -434,10 +475,55 @@ mod tests {
     }
 
     #[test]
+    fn search_results() {
+        let mut entry = StoreEntry {
+            name: Default::default(),
+            keyword: Keyword::RawKeyword(Default::default()),
+            entry: EntryType::FileEntry(Default::default()),
+            tags: Default::default(),
+        };
+
+        let raw: Keyword = Keyword::RawKeyword(Default::default());
+        let escaped: Keyword = Keyword::EscapedKeyword(Default::default());
+
+        let tests = [
+            (&raw, "a b", "a", "b", "b"),
+            (&raw, "a b c", "a", "b c", "b c"),
+            (&escaped, "a b", "a", "b", "b"),
+            (&escaped, "a b c", "a", "b c", "b%20c"),
+        ];
+
+        for (entry_type, searchtext, query, rawparam, escapedparam) in tests {
+            entry.keyword = entry_type.clone();
+            let res = SearchResult::new(&entry, searchtext);
+
+            assert_eq!(
+                query, res.query,
+                r#"query:"{}" -> "{}" failed: "#,
+                searchtext, query
+            );
+
+            assert_eq!(
+                rawparam, res.param,
+                r#"param:"{}" -> "{}" failed: "#,
+                searchtext, rawparam
+            );
+
+            assert_eq!(
+                escapedparam,
+                res.escaped_param(),
+                r#"escaped_param:"{}" -> "{}" failed: "#,
+                searchtext,
+                escapedparam
+            );
+        }
+    }
+
+    #[test]
     fn test_format() {
         let entry = StoreEntry {
             name: Default::default(),
-            keyword: Some(Default::default()),
+            keyword: Keyword::RawKeyword(Default::default()),
             entry: EntryType::FileEntry(Default::default()),
             tags: Default::default(),
         };
@@ -447,6 +533,7 @@ mod tests {
             ("test %s", "a", "test a"),
             ("%%s", "a", "%s"),
             ("%%%s", "a", "%a"),
+            ("%s", "a a", "a a"),
         ];
 
         for test in tests {
