@@ -78,6 +78,7 @@ impl Jolly {
     ) -> Command<<Jolly as Application>::Message> {
         let result = match entry.entry {
             store::EntryType::FileEntry(s) => platform::open_file(&s),
+            store::EntryType::SystemEntry(s) => platform::system(&s),
         };
 
         if let Err(e) = result.map_err(error::Error::PlatformError) {

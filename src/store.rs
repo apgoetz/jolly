@@ -5,7 +5,7 @@
 // tags = ['foo', 'text', 'baz']
 // location = '/optional/path/to/filename'
 // url = 'http://example.com' #can contain mozilla style query string (single %s)
-// system = 'cmd to run %s'#can contain mozilla style query string (single %s)
+// system = 'cmd to run'# can contain mozilla style query string (single %s)
 // keyword = 'k' # keyword used for mozilla style query strings
 use serde::Deserialize;
 use std::error;
@@ -45,6 +45,7 @@ impl error::Error for Error {}
 #[derive(Deserialize, Debug)]
 struct RawStoreEntry {
     location: Option<String>,
+    system: Option<String>,
     tags: Option<Vec<String>>,
 }
 
@@ -58,6 +59,7 @@ pub struct StoreEntry {
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum EntryType {
     FileEntry(String),
+    SystemEntry(String),
 }
 
 impl StoreEntry {
@@ -70,8 +72,13 @@ impl StoreEntry {
             None => &name,
         }
         .to_string();
+        let entry;
 
-        let entry = EntryType::FileEntry(location);
+        if let Some(s) = raw_entry.system {
+            entry = EntryType::SystemEntry(s);
+        } else {
+            entry = EntryType::FileEntry(location);
+        }
 
         let tags = match raw_entry.tags {
             Some(tags) => tags,
