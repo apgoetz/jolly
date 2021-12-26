@@ -304,6 +304,32 @@ mod tests {
     }
 
     #[test]
+    fn system_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let dirname = dir.path().to_string_lossy();
+        let toml = format!(
+            r#"['{}']
+                    system = 'foo bar'
+		    tags = ["foo", 'bar', 'baz']"#,
+            dirname
+        );
+        let expected_entry = StoreEntry {
+            name: dirname.to_string(),
+            entry: EntryType::SystemEntry("foo bar".to_string()),
+            tags: ["foo", "bar", "baz"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+        };
+
+        let store = parse_store(&toml).unwrap();
+        let entry = &store.entries[0];
+
+        assert!(store.entries.len() == 1);
+        assert_eq!(&expected_entry, entry);
+    }
+
+    #[test]
     fn single_dir_entry() {
         let dir = tempfile::tempdir().unwrap();
         let dirname = dir.path().to_string_lossy();
