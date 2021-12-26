@@ -9,13 +9,15 @@ type Message = store::StoreEntry;
 pub struct Entry<'a> {
     selected: bool,
     entry: &'a store::StoreEntry,
+    title: String,
 }
 
 impl<'a> Entry<'a> {
-    pub fn new(entry: &'a store::StoreEntry) -> Self {
+    pub fn new(searchtext: &str, entry: &'a store::StoreEntry) -> Self {
         Entry {
             selected: false,
             entry: entry,
+            title: entry.formatted_name(searchtext),
         }
     }
 
@@ -77,7 +79,7 @@ where
         }
 
         renderer.fill_text(text::Text {
-            content: &self.entry.name,
+            content: &self.title,
             size: renderer.default_size() as f32,
             bounds: iced_native::Rectangle {
                 x: bounds.x + 5.0,

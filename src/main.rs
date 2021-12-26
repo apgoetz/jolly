@@ -76,12 +76,9 @@ impl Jolly {
         &mut self,
         entry: store::StoreEntry,
     ) -> Command<<Jolly as Application>::Message> {
-        let result = match entry.entry {
-            store::EntryType::FileEntry(s) => platform::open_file(&s),
-            store::EntryType::SystemEntry(s) => platform::system(&s),
-        };
+        let result = entry.handle_selection(&self.searchtext);
 
-        if let Err(e) = result.map_err(error::Error::PlatformError) {
+        if let Err(e) = result.map_err(error::Error::StoreError) {
             self.move_to_err(e)
         } else {
             self.should_exit = true;
@@ -184,7 +181,10 @@ impl Application for Jolly {
             )
             .padding(UI_DEFAULT_PADDING),
         );
-        column = column.push(self.search_results.view(Message::EntrySelected));
+        column = column.push(
+            self.search_results
+                .view(&self.searchtext, Message::EntrySelected),
+        );
         column.into()
     }
 }

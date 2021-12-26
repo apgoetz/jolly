@@ -15,6 +15,9 @@ use std::hash::Hash;
 use std::path::Path;
 use toml;
 
+use crate::platform;
+
+const FULL_KEYWORD_W: u32 = 100;
 const PARTIAL_NAME_W: u32 = 2;
 const FULL_NAME_W: u32 = 4;
 const PARTIAL_TAG_W: u32 = 1;
@@ -25,12 +28,14 @@ pub enum Error {
     IOError(std::io::Error),
     ParseError(toml::de::Error),
     CustomError(String),
+    PlatformError(platform::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::IOError(e) => e.fmt(f),
+            Error::PlatformError(e) => e.fmt(f),
             Error::ParseError(e) => {
                 write!(f, "TOML Error: ")?;
                 e.fmt(f)
@@ -46,14 +51,33 @@ impl error::Error for Error {}
 struct RawStoreEntry {
     location: Option<String>,
     system: Option<String>,
+    keyword: Option<String>,
     tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub struct StoreEntry {
-    pub name: String,
-    pub entry: EntryType,
-    pub tags: Vec<String>,
+    name: String,
+    entry: EntryType,
+    tags: Vec<String>,
+    keyword: Option<String>,
+}
+
+struct SearchResult<'a> {
+    query: &'a str,
+    param: &'a str,
+}
+
+impl<'a> SearchResult<'a> {
+    fn new(searchtext: &'a str) -> Self {
+        let (query, param) = if let Some((front, back)) = searchtext.split_once(char::is_whitespace)
+        {
+            (front, back)
+        } else {
+            (searchtext, "%s")
+        };
+        Self { query, param }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -89,14 +113,23 @@ impl StoreEntry {
             name: name.to_string(),
             entry: entry,
             tags: tags,
+            keyword: raw_entry.keyword,
         })
     }
 
     // score an entry based on information
-    fn score(&self, query: &str) -> u32 {
+    fn score(&self, searchtext: &str) -> u32 {
+        let query = SearchResult::new(searchtext).query;
+
         if query.len() == 0 {
             return 0;
         }
+
+        let full_keyword = if let Some(k) = &self.keyword {
+            k == query
+        } else {
+            false
+        };
 
         // calculate measures of a match
         let full_name = self.name == query;
@@ -106,13 +139,47 @@ impl StoreEntry {
         let partial_tag = !full_tag && self.tags.iter().any(|t| t.contains(query));
 
         // calculate "score" as crossproduct of weights and values
-        let vals = [partial_name, full_name, partial_tag, full_tag].map(u32::from);
-        let weights = [PARTIAL_NAME_W, FULL_NAME_W, PARTIAL_TAG_W, FULL_TAG_W];
+        let vals = [full_keyword, partial_name, full_name, partial_tag, full_tag].map(u32::from);
+        let weights = [
+            FULL_KEYWORD_W,
+            PARTIAL_NAME_W,
+            FULL_NAME_W,
+            PARTIAL_TAG_W,
+            FULL_TAG_W,
+        ];
         vals.iter()
             .zip(weights)
             .map(|(&a, b)| a * b)
             .reduce(|a, b| a + b)
             .unwrap()
+    }
+
+    // format example:
+    //
+
+    fn format(&self, fmt_str: &str, searchtext: &str) -> String {
+        if self.keyword.is_none() {
+            return fmt_str.to_string();
+        }
+
+        fmt_str
+            .split("%%")
+            .map(|s| s.replace("%s", searchtext))
+            .collect::<Vec<_>>()
+            .join("%")
+    }
+
+    pub fn formatted_name(&self, searchtext: &str) -> String {
+        self.format(&self.name, SearchResult::new(searchtext).param)
+    }
+
+    pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
+        let param = SearchResult::new(searchtext).param;
+        match &self.entry {
+            EntryType::FileEntry(s) => platform::open_file(&self.format(s, param)),
+            EntryType::SystemEntry(s) => platform::system(&self.format(s, param)),
+        }
+        .map_err(Error::PlatformError)
     }
 }
 
@@ -182,6 +249,7 @@ mod tests {
     fn entry_score() {
         let entry = StoreEntry {
             name: "foo.txt".to_string(),
+            keyword: None,
             entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -256,6 +324,7 @@ mod tests {
                     location = "test/location""#,
                 StoreEntry {
                     name: "foo.txt".to_string(),
+                    keyword: None,
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: ["foo", "bar", "baz"]
                         .into_iter()
@@ -268,6 +337,7 @@ mod tests {
                     location = "test/location""#,
                 StoreEntry {
                     name: "foo.txt".to_string(),
+                    keyword: None,
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                 },
@@ -277,6 +347,7 @@ mod tests {
 		    tags = ["foo", 'bar', 'baz']"#,
                 StoreEntry {
                     name: "test/location/foo.txt".to_string(),
+                    keyword: None,
                     entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
                     tags: ["foo", "bar", "baz"]
                         .into_iter()
@@ -315,6 +386,7 @@ mod tests {
         );
         let expected_entry = StoreEntry {
             name: dirname.to_string(),
+            keyword: None,
             entry: EntryType::SystemEntry("foo bar".to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -340,6 +412,7 @@ mod tests {
         );
         let expected_entry = StoreEntry {
             name: dirname.to_string(),
+            keyword: None,
             entry: EntryType::FileEntry(dirname.to_string()),
             tags: ["foo", "bar", "baz"]
                 .into_iter()
@@ -358,6 +431,34 @@ mod tests {
     fn nonexistent_path() {
         let result = load_store("nonexistentfile.toml");
         assert!(matches!(result, Err(Error::IOError(_))));
+    }
+
+    #[test]
+    fn test_format() {
+        let entry = StoreEntry {
+            name: Default::default(),
+            keyword: Some(Default::default()),
+            entry: EntryType::FileEntry(Default::default()),
+            tags: Default::default(),
+        };
+
+        let tests = [
+            ("%s", "a", "a"),
+            ("test %s", "a", "test a"),
+            ("%%s", "a", "%s"),
+            ("%%%s", "a", "%a"),
+        ];
+
+        for test in tests {
+            assert_eq!(
+                test.2,
+                entry.format(test.0, test.1),
+                r#"format("{}", "{}") -> "{}" failed: "#,
+                test.0,
+                test.1,
+                test.2
+            );
+        }
     }
 
     // this test is just a playground to see what toml is rendered as

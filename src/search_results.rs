@@ -41,6 +41,7 @@ impl SearchResults {
 
     pub fn view<'a, F, Message, Renderer>(
         &'a self,
+        searchtext: &str,
         f: F,
     ) -> iced_native::Element<'a, Message, Renderer>
     where
@@ -51,9 +52,13 @@ impl SearchResults {
         let mut column = widget::column::Column::new();
         for (i, e) in self.entries.iter().enumerate() {
             // unwrap will never panic since UI_MAX_RESULTS is const
-            let entry: iced_native::Element<_, _> = match i {
-                i if i == self.selected => display::Entry::new(e).selected().into(),
-                _ => display::Entry::new(e).into(),
+            let entry: iced_native::Element<_, _> = {
+                let e = display::Entry::new(searchtext, e);
+                if i == self.selected {
+                    e.selected().into()
+                } else {
+                    e.into()
+                }
             };
             column = column.push(entry);
         }
