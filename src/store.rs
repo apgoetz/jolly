@@ -214,13 +214,21 @@ impl StoreEntry {
         self.format(&self.name, SearchResult::new(self, searchtext).param)
     }
 
-    pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
+    pub fn format_selection(&self, searchtext: &str) -> String {
         let param = SearchResult::new(self, searchtext).escaped_param();
-        match &self.entry {
-            EntryType::FileEntry(s) => platform::open_file(&self.format(s, param)),
-            EntryType::SystemEntry(s) => platform::system(&self.format(s, param)),
-        }
-        .map_err(Error::PlatformError)
+        let s = match &self.entry {
+            EntryType::FileEntry(s) => s,
+            EntryType::SystemEntry(s) => s,
+        };
+        self.format(s, param)
+    }
+
+    pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
+        let func = match &self.entry {
+            EntryType::FileEntry(_) => platform::open_file,
+            EntryType::SystemEntry(_) => platform::system,
+        };
+        func(&self.format_selection(searchtext)).map_err(Error::PlatformError)
     }
 }
 

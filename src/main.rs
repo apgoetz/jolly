@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use blocking;
 use iced::{executor, text_input, Application, Command, Element, Settings, TextInput};
-use iced_native::{command, event, keyboard, subscription, widget, window};
+use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
 use std::path;
 
 mod display;
@@ -59,6 +59,7 @@ struct Jolly {
     should_exit: bool,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
+    modifiers: keyboard::Modifiers,
 }
 
 impl Jolly {
@@ -76,13 +77,25 @@ impl Jolly {
         &mut self,
         entry: store::StoreEntry,
     ) -> Command<<Jolly as Application>::Message> {
-        let result = entry.handle_selection(&self.searchtext);
-
-        if let Err(e) = result.map_err(error::Error::StoreError) {
-            self.move_to_err(e)
+        // if the user is pressing the command key, we want to copy to
+        // clipboard instead of opening the link
+        if self.modifiers.command() {
+            let result = entry.format_selection(&self.searchtext);
+            let msg = format!("copied to clipboard: {}", &result);
+            let cmds = [
+                Command::single(command::Action::Clipboard(clipboard::Action::Write(result))),
+                self.move_to_err(error::Error::FinalMessage(msg)),
+            ];
+            Command::batch(cmds)
         } else {
-            self.should_exit = true;
-            Command::none()
+            let result = entry.handle_selection(&self.searchtext);
+
+            if let Err(e) = result.map_err(error::Error::StoreError) {
+                self.move_to_err(e)
+            } else {
+                self.should_exit = true;
+                Command::none()
+            }
         }
     }
 }
@@ -137,6 +150,8 @@ impl Application for Jolly {
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
                 if e == ESCAPE_EVENT {
                     self.should_exit = true;
+                } else if let keyboard::Event::ModifiersChanged(m) = e {
+                    self.modifiers = m;
                 }
                 self.search_results.handle_kb(e);
                 Command::none()
