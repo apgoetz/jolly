@@ -17,3 +17,11 @@ urlencoding = "2.1.0"
 
 [dev-dependencies] 
 tempfile = "3"
+
+[target.'cfg(windows)'.build-dependencies]
+resvg = "0.20.0"
+usvg = "0.20.0"
+tiny-skia = "0.6.1"
+ico = "0.1.0"
+winres = "0.1.12"
+

@@ -19,3 +19,4 @@ searching them (For example, the venerable
 though that requires searching and indexing documents. Jolly solves
 the problem a simpler way, by requiring the user to add tags to
 documents for the filtering.
+
