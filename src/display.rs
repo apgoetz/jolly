@@ -1,4 +1,5 @@
 // contains logic for displaying entries
+use crate::platform;
 use crate::store;
 use iced_native::{event, keyboard, layout, mouse, renderer, text, widget};
 use std::hash::Hash;
@@ -73,7 +74,7 @@ where
                     border_width: 1.0,
                     border_color: iced_native::Color::TRANSPARENT,
                 },
-                iced_native::Color::from_rgb8(92, 144, 226),
+                platform::accent_color(),
             );
             color = iced_native::Color::WHITE;
         }
