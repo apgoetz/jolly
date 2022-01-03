@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use blocking;
 use iced::{executor, text_input, Application, Command, Element, Settings, TextInput};
-use iced_native::{command, event, keyboard, subscription, widget, window};
+use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
 use std::path;
 
 mod display;
@@ -59,6 +59,7 @@ struct Jolly {
     should_exit: bool,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
+    modifiers: keyboard::Modifiers,
 }
 
 impl Jolly {
@@ -76,16 +77,25 @@ impl Jolly {
         &mut self,
         entry: store::StoreEntry,
     ) -> Command<<Jolly as Application>::Message> {
-        let result = match entry.entry {
-            store::EntryType::FileEntry(s) => platform::open_file(&s),
-            store::EntryType::DirectoryEntry(s) => platform::open_file(&s),
-        };
-
-        if let Err(e) = result.map_err(error::Error::PlatformError) {
-            self.move_to_err(e)
+        // if the user is pressing the command key, we want to copy to
+        // clipboard instead of opening the link
+        if self.modifiers.command() {
+            let result = entry.format_selection(&self.searchtext);
+            let msg = format!("copied to clipboard: {}", &result);
+            let cmds = [
+                Command::single(command::Action::Clipboard(clipboard::Action::Write(result))),
+                self.move_to_err(error::Error::FinalMessage(msg)),
+            ];
+            Command::batch(cmds)
         } else {
-            self.should_exit = true;
-            Command::none()
+            let result = entry.handle_selection(&self.searchtext);
+
+            if let Err(e) = result.map_err(error::Error::StoreError) {
+                self.move_to_err(e)
+            } else {
+                self.should_exit = true;
+                Command::none()
+            }
         }
     }
 }
@@ -129,6 +139,10 @@ impl Application for Jolly {
                     Command::none()
                 }
             }
+            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
+                self.should_exit = true;
+                Command::none()
+            }
             Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
                 println!("{:?}", path);
                 Command::none()
@@ -136,6 +150,8 @@ impl Application for Jolly {
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
                 if e == ESCAPE_EVENT {
                     self.should_exit = true;
+                } else if let keyboard::Event::ModifiersChanged(m) = e {
+                    self.modifiers = m;
                 }
                 self.search_results.handle_kb(e);
                 Command::none()
@@ -165,7 +181,7 @@ impl Application for Jolly {
     fn view(&mut self) -> Element<Self::Message> {
         use StoreLoadedState::*;
         let default_txt = match &self.store_state {
-            Pending => "Loading Message",
+            Pending => "Loading Bookmarks... ",
             LoadFailed(msg) => msg,
             LoadSucceeded(_, msg) => msg,
         };
@@ -180,7 +196,10 @@ impl Application for Jolly {
             )
             .padding(UI_DEFAULT_PADDING),
         );
-        column = column.push(self.search_results.view(Message::EntrySelected));
+        column = column.push(
+            self.search_results
+                .view(&self.searchtext, Message::EntrySelected),
+        );
         column.into()
     }
 }
@@ -216,7 +235,6 @@ pub fn main() -> Result<(), error::Error> {
     let mut settings = Settings::default();
     settings.window.size = (UI_WIDTH, UI_STARTING_HEIGHT);
     settings.window.decorations = false;
-    settings.window.resizable = false;
     settings.default_text_size = UI_DEFAULT_TEXT_SIZE;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }

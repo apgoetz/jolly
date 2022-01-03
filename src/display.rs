@@ -9,13 +9,15 @@ type Message = store::StoreEntry;
 pub struct Entry<'a> {
     selected: bool,
     entry: &'a store::StoreEntry,
+    title: String,
 }
 
 impl<'a> Entry<'a> {
-    pub fn new(entry: &'a store::StoreEntry) -> Self {
+    pub fn new(searchtext: &str, entry: &'a store::StoreEntry) -> Self {
         Entry {
             selected: false,
             entry: entry,
+            title: entry.formatted_name(searchtext),
         }
     }
 
@@ -50,7 +52,7 @@ where
     fn draw(
         &self,
         renderer: &mut Renderer,
-        style: &renderer::Style,
+        _style: &renderer::Style,
         layout: layout::Layout<'_>,
         _cursor_position: iced_native::Point,
         viewport: &iced_native::Rectangle,
@@ -58,11 +60,12 @@ where
         // viewport is rectangle covering entire UI that is being rendered
         // layout is the shape that we have  been budgeted
         let mut color = iced_native::Color::BLACK;
+        let bounds = layout
+            .bounds()
+            .intersection(viewport)
+            .unwrap_or(layout.bounds());
+
         if self.selected {
-            let bounds = layout
-                .bounds()
-                .intersection(viewport)
-                .unwrap_or(layout.bounds());
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: bounds,
@@ -75,17 +78,19 @@ where
             color = iced_native::Color::WHITE;
         }
 
-        widget::text::draw(
-            renderer,
-            style,
-            layout,
-            &self.entry.name,
-            Default::default(),
-            None,
-            Some(color),
-            iced_native::alignment::Horizontal::Left,
-            iced_native::alignment::Vertical::Center,
-        );
+        renderer.fill_text(text::Text {
+            content: &self.title,
+            size: renderer.default_size() as f32,
+            bounds: iced_native::Rectangle {
+                x: bounds.x + 5.0,
+                y: bounds.center_y(),
+                ..bounds
+            },
+            color: color,
+            font: Default::default(),
+            horizontal_alignment: iced_native::alignment::Horizontal::Left,
+            vertical_alignment: iced_native::alignment::Vertical::Center,
+        });
     }
 
     fn hash_layout(&self, state: &mut iced_native::Hasher) {
@@ -117,6 +122,7 @@ where
                     event::Status::Ignored
                 }
             }
+            // if return key is pressed
             event::Event::Keyboard(keyboard::Event::KeyReleased {
                 key_code: code,
                 modifiers: _,
@@ -124,6 +130,15 @@ where
                 if (code == keyboard::KeyCode::NumpadEnter || code == keyboard::KeyCode::Enter)
                     && self.selected
                 {
+                    messages.push(self.entry.clone());
+                    event::Status::Captured
+                } else {
+                    event::Status::Ignored
+                }
+            }
+            // somehow on linux, the numpad key is "carriage return"
+            event::Event::Keyboard(keyboard::Event::CharacterReceived(c)) => {
+                if (c == '\r') && self.selected {
                     messages.push(self.entry.clone());
                     event::Status::Captured
                 } else {
