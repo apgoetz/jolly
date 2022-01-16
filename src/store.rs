@@ -21,9 +21,19 @@ use crate::platform;
 
 const FULL_KEYWORD_W: u32 = 100;
 const PARTIAL_NAME_W: u32 = 2;
-const FULL_NAME_W: u32 = 4;
+const FULL_NAME_W: u32 = 5;
 const PARTIAL_TAG_W: u32 = 1;
-const FULL_TAG_W: u32 = 2;
+const STARTSWITH_TAG_W: u32 = 2;
+const FULL_TAG_W: u32 = 3;
+
+// based on https://users.rust-lang.org/t/why-are-not-min-and-max-macros-in-the-std/9730
+macro_rules! max {
+    ($x: expr) => ($x);
+    ($x: expr, $($z: expr),+) => {{
+        let y = max!($($z),*);
+        std::cmp::max($x, y)
+    }}
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -76,21 +86,20 @@ pub struct StoreEntry {
 
 struct SearchResult<'a> {
     entry: &'a StoreEntry,
-    query: &'a str,
+    query: Vec<&'a str>,
     param: &'a str,
 }
 
 impl<'a> SearchResult<'a> {
     fn new(entry: &'a StoreEntry, searchtext: &'a str) -> Self {
-        let (query, param) = if let Some((front, back)) = searchtext.split_once(char::is_whitespace)
-        {
-            (front, back)
+        let param = if let Some((_, back)) = searchtext.split_once(char::is_whitespace) {
+            back
         } else {
-            (searchtext, "%s")
+            "%s"
         };
         Self {
             entry,
-            query,
+            query: searchtext.split_whitespace().collect(),
             param,
         }
     }
@@ -158,41 +167,55 @@ impl StoreEntry {
         })
     }
 
-    // score an entry based on information
+    // basic idea: search query consists of multiple filters that
+    // are ANDED together. And Each query is run on the name and
+    // each tag and ORed together
+    //
+    // score functions score(item, query)
+    //
+    // for entry (name='foo', tags = ['abc', '123'])
+    //
+    // for query = "foo a"
+    //
+    // overall score = MIN(
+    //                   MAX(score('foo', 'foo'), score('abc', 'foo'), score('123', 'foo')),
+    //                   MAX(score('foo', 'a'), score('abc', 'a'), score('123', 'a')),
+    //                 );
+    //
+    //
+    // search results are a little different for keword entries.
+    //
+    // for keyword entries, they follow the same normal scoring as
+    // seen above, so they show up in results for searchs. But
+    // they OR together a special check for (1st search token) == keyword token
     fn score(&self, searchtext: &str) -> u32 {
         let query = SearchResult::new(self, searchtext).query;
 
-        if query.len() == 0 {
+        // if vec is empty or first element is empty, no score
+        if query.len() == 0 || query[0].len() == 0 {
             return 0;
         }
 
-        let full_keyword = match &self.keyword {
-            Keyword::None => false,
-            Keyword::RawKeyword(k) => k == query,
-            Keyword::EscapedKeyword(k) => k == query,
-        };
+        let full_keyword = FULL_KEYWORD_W
+            * match &self.keyword {
+                Keyword::None => false,
+                Keyword::RawKeyword(k) => k == query[0],
+                Keyword::EscapedKeyword(k) => k == query[0],
+            } as u32;
 
-        // calculate measures of a match
-        let full_name = self.name == query;
-        let partial_name = !full_name && self.name.contains(query);
+        let mut running_score = u32::MAX;
 
-        let full_tag = self.tags.iter().any(|t| t == query);
-        let partial_tag = !full_tag && self.tags.iter().any(|t| t.contains(query));
-
-        // calculate "score" as crossproduct of weights and values
-        let vals = [full_keyword, partial_name, full_name, partial_tag, full_tag].map(u32::from);
-        let weights = [
-            FULL_KEYWORD_W,
-            PARTIAL_NAME_W,
-            FULL_NAME_W,
-            PARTIAL_TAG_W,
-            FULL_TAG_W,
-        ];
-        vals.iter()
-            .zip(weights)
-            .map(|(&a, b)| a * b)
-            .reduce(|a, b| a + b)
-            .unwrap()
+        for q in query {
+            running_score = running_score.min(max! {
+                // calculate measures of a match
+                FULL_NAME_W*((self.name == q) as u32),
+                PARTIAL_NAME_W*(self.name.contains(q) as u32),
+                FULL_TAG_W*(self.tags.iter().any(|t| t == q) as u32),
+                PARTIAL_TAG_W*(self.tags.iter().any(|t| t.contains(q)) as u32),
+                STARTSWITH_TAG_W*(self.tags.iter().any(|t| t.starts_with(q)) as u32)
+            });
+        }
+        running_score.max(full_keyword)
     }
 
     // format example:
@@ -295,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn entry_score() {
+    fn non_keword_score() {
         let entry = StoreEntry {
             name: "foo.txt".to_string(),
             keyword: Keyword::None,
@@ -306,13 +329,36 @@ mod tests {
                 .collect(),
         };
 
-        assert_eq!(entry.score("fo"), PARTIAL_NAME_W + PARTIAL_TAG_W);
-        assert_eq!(entry.score("foo"), PARTIAL_NAME_W + FULL_TAG_W);
+        assert_eq!(entry.score("fo"), PARTIAL_NAME_W);
+        assert_eq!(entry.score("foo"), FULL_TAG_W);
         assert_eq!(entry.score("foo.txt"), FULL_NAME_W);
 
-        assert_eq!(entry.score("ba"), PARTIAL_TAG_W);
+        assert_eq!(entry.score("ba"), STARTSWITH_TAG_W);
+        assert_eq!(entry.score("az"), PARTIAL_TAG_W);
+
         assert_eq!(entry.score("baz"), FULL_TAG_W);
+        assert_eq!(entry.score("bar fo"), STARTSWITH_TAG_W);
+        assert_eq!(entry.score("bar az"), PARTIAL_TAG_W);
         assert_eq!(entry.score(""), 0);
+    }
+
+    #[test]
+    fn keword_score() {
+        let entry = StoreEntry {
+            name: "foo.txt".to_string(),
+            keyword: Keyword::RawKeyword("y".to_string()),
+            entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
+            tags: ["foo", "bar", "baz"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+        };
+
+        // if you dont use a keyword, score normally
+        assert_eq!(entry.score("fo"), PARTIAL_NAME_W);
+
+        // otherwise get big bonus for using keyword
+        assert_eq!(entry.score("y foo"), FULL_KEYWORD_W);
     }
 
     #[test]
@@ -483,7 +529,7 @@ mod tests {
     }
 
     #[test]
-    fn search_results() {
+    fn keyword_search_results() {
         let mut entry = StoreEntry {
             name: Default::default(),
             keyword: Keyword::RawKeyword(Default::default()),
@@ -495,10 +541,10 @@ mod tests {
         let escaped: Keyword = Keyword::EscapedKeyword(Default::default());
 
         let tests = [
-            (&raw, "a b", "a", "b", "b"),
-            (&raw, "a b c", "a", "b c", "b c"),
-            (&escaped, "a b", "a", "b", "b"),
-            (&escaped, "a b c", "a", "b c", "b%20c"),
+            (&raw, "a b", vec!["a", "b"], "b", "b"),
+            (&raw, "a b c", vec!["a", "b", "c"], "b c", "b c"),
+            (&escaped, "a b", vec!["a", "b"], "b", "b"),
+            (&escaped, "a b c", vec!["a", "b", "c"], "b c", "b%20c"),
         ];
 
         for (entry_type, searchtext, query, rawparam, escapedparam) in tests {
@@ -507,7 +553,7 @@ mod tests {
 
             assert_eq!(
                 query, res.query,
-                r#"query:"{}" -> "{}" failed: "#,
+                r#"query:"{:?}" -> "{:?}" failed: "#,
                 searchtext, query
             );
 
