@@ -13,27 +13,21 @@ use std::error;
 use std::fmt;
 use std::fs;
 use std::hash::Hash;
+use std::ops::Deref;
 use std::path::Path;
 use toml;
 use urlencoding;
 
 use crate::platform;
 
+// these are the weights for the different kind of matches.
+// we prefer each weight to be different so we can differentiate them in the test plan
 const FULL_KEYWORD_W: u32 = 100;
-const PARTIAL_NAME_W: u32 = 2;
-const FULL_NAME_W: u32 = 5;
-const PARTIAL_TAG_W: u32 = 1;
-const STARTSWITH_TAG_W: u32 = 2;
-const FULL_TAG_W: u32 = 3;
-
-// based on https://users.rust-lang.org/t/why-are-not-min-and-max-macros-in-the-std/9730
-macro_rules! max {
-    ($x: expr) => ($x);
-    ($x: expr, $($z: expr),+) => {{
-        let y = max!($($z),*);
-        std::cmp::max($x, y)
-    }}
-}
+const PARTIAL_NAME_W: u32 = 3;
+const FULL_NAME_W: u32 = 10;
+const PARTIAL_TAG_W: u32 = 2;
+const STARTSWITH_TAG_W: u32 = 4;
+const FULL_TAG_W: u32 = 6;
 
 #[derive(Debug)]
 pub enum Error {
@@ -82,34 +76,6 @@ pub struct StoreEntry {
     entry: EntryType,
     tags: Vec<String>,
     keyword: Keyword,
-}
-
-struct SearchResult<'a> {
-    entry: &'a StoreEntry,
-    query: Vec<&'a str>,
-    param: &'a str,
-}
-
-impl<'a> SearchResult<'a> {
-    fn new(entry: &'a StoreEntry, searchtext: &'a str) -> Self {
-        let param = if let Some((_, back)) = searchtext.split_once(char::is_whitespace) {
-            back
-        } else {
-            "%s"
-        };
-        Self {
-            entry,
-            query: searchtext.split_whitespace().collect(),
-            param,
-        }
-    }
-
-    fn escaped_param(&self) -> String {
-        match self.entry.keyword {
-            Keyword::EscapedKeyword(_) => urlencoding::encode(self.param).into_owned(),
-            _ => self.param.to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -189,31 +155,52 @@ impl StoreEntry {
     // seen above, so they show up in results for searchs. But
     // they OR together a special check for (1st search token) == keyword token
     fn score(&self, searchtext: &str) -> u32 {
-        let query = SearchResult::new(self, searchtext).query;
+        // determine if we are doing case sensitive or case - insensitive match
+        let change_case = if searchtext == searchtext.to_lowercase() {
+            |s: &str| s.to_uppercase()
+        } else {
+            |s: &str| s.to_string()
+        };
+
+        // build temporary strings with the right case
+        let name = change_case(&self.name);
+        let tags: Vec<_> = self
+            .tags
+            .iter()
+            .map(String::deref)
+            .map(change_case)
+            .collect();
+        let query: Vec<_> = searchtext.split_whitespace().map(change_case).collect();
 
         // if vec is empty or first element is empty, no score
         if query.len() == 0 || query[0].len() == 0 {
             return 0;
         }
 
+        // check to see if we match a keyword
         let full_keyword = FULL_KEYWORD_W
             * match &self.keyword {
                 Keyword::None => false,
-                Keyword::RawKeyword(k) => k == query[0],
-                Keyword::EscapedKeyword(k) => k == query[0],
+                Keyword::RawKeyword(k) => change_case(k) == query[0],
+                Keyword::EscapedKeyword(k) => change_case(k) == query[0],
             } as u32;
 
         let mut running_score = u32::MAX;
 
-        for q in query {
-            running_score = running_score.min(max! {
+        for ref q in query {
+            running_score = running_score.min(
                 // calculate measures of a match
-                FULL_NAME_W*((self.name == q) as u32),
-                PARTIAL_NAME_W*(self.name.contains(q) as u32),
-                FULL_TAG_W*(self.tags.iter().any(|t| t == q) as u32),
-                PARTIAL_TAG_W*(self.tags.iter().any(|t| t.contains(q)) as u32),
-                STARTSWITH_TAG_W*(self.tags.iter().any(|t| t.starts_with(q)) as u32)
-            });
+                [
+                    FULL_NAME_W * ((&name == q) as u32),
+                    PARTIAL_NAME_W * (name.contains(q) as u32),
+                    FULL_TAG_W * (tags.iter().any(|t| t == q) as u32),
+                    PARTIAL_TAG_W * (tags.iter().any(|t| t.contains(q)) as u32),
+                    STARTSWITH_TAG_W * (tags.iter().any(|t| t.starts_with(q)) as u32),
+                ]
+                .into_iter()
+                .reduce(std::cmp::max)
+                .unwrap(),
+            );
         }
         running_score.max(full_keyword)
     }
@@ -233,17 +220,33 @@ impl StoreEntry {
             .join("%")
     }
 
-    pub fn formatted_name(&self, searchtext: &str) -> String {
-        self.format(&self.name, SearchResult::new(self, searchtext).param)
+    pub fn format_name(&self, searchtext: &str) -> String {
+        let param = if let Some((_, back)) = searchtext.split_once(char::is_whitespace) {
+            back
+        } else {
+            "%s"
+        };
+
+        self.format(&self.name, param)
     }
 
     pub fn format_selection(&self, searchtext: &str) -> String {
-        let param = SearchResult::new(self, searchtext).escaped_param();
+        let param = if let Some((_, back)) = searchtext.split_once(char::is_whitespace) {
+            back
+        } else {
+            "%s"
+        };
+
+        let escaped_param = match self.keyword {
+            Keyword::EscapedKeyword(_) => urlencoding::encode(param).into_owned(),
+            _ => param.to_string(),
+        };
+
         let s = match &self.entry {
             EntryType::FileEntry(s) => s,
             EntryType::SystemEntry(s) => s,
         };
-        self.format(s, param)
+        self.format(s, escaped_param)
     }
 
     pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
@@ -318,6 +321,23 @@ mod tests {
     }
 
     #[test]
+    fn case_sensitive() {
+        let entry = StoreEntry {
+            name: "fOO.txt".to_string(),
+            keyword: Keyword::None,
+            entry: EntryType::FileEntry("test/location/asdf.txt".to_string()),
+            tags: ["FOO"].into_iter().map(str::to_string).collect(),
+        };
+
+        // if we give a lowercase query, then default case insensitive match
+        assert_eq!(entry.score("fo"), STARTSWITH_TAG_W);
+        // if we give a
+        assert_eq!(entry.score("FO"), STARTSWITH_TAG_W);
+        assert_eq!(entry.score("FOO"), FULL_TAG_W);
+        assert_eq!(entry.score("fO"), PARTIAL_NAME_W);
+    }
+
+    #[test]
     fn non_keword_score() {
         let entry = StoreEntry {
             name: "foo.txt".to_string(),
@@ -329,7 +349,7 @@ mod tests {
                 .collect(),
         };
 
-        assert_eq!(entry.score("fo"), PARTIAL_NAME_W);
+        assert_eq!(entry.score("tx"), PARTIAL_NAME_W);
         assert_eq!(entry.score("foo"), FULL_TAG_W);
         assert_eq!(entry.score("foo.txt"), FULL_NAME_W);
 
@@ -355,7 +375,7 @@ mod tests {
         };
 
         // if you dont use a keyword, score normally
-        assert_eq!(entry.score("fo"), PARTIAL_NAME_W);
+        assert_eq!(entry.score("fo"), STARTSWITH_TAG_W);
 
         // otherwise get big bonus for using keyword
         assert_eq!(entry.score("y foo"), FULL_KEYWORD_W);
@@ -531,9 +551,9 @@ mod tests {
     #[test]
     fn keyword_search_results() {
         let mut entry = StoreEntry {
-            name: Default::default(),
+            name: "name:%s".to_string(),
             keyword: Keyword::RawKeyword(Default::default()),
-            entry: EntryType::FileEntry(Default::default()),
+            entry: EntryType::FileEntry("file/%s".to_string()),
             tags: Default::default(),
         };
 
@@ -541,34 +561,30 @@ mod tests {
         let escaped: Keyword = Keyword::EscapedKeyword(Default::default());
 
         let tests = [
-            (&raw, "a b", vec!["a", "b"], "b", "b"),
-            (&raw, "a b c", vec!["a", "b", "c"], "b c", "b c"),
-            (&escaped, "a b", vec!["a", "b"], "b", "b"),
-            (&escaped, "a b c", vec!["a", "b", "c"], "b c", "b%20c"),
+            (&raw, "a b", "name:b", "file/b"),
+            (&raw, "a B", "name:B", "file/B"),
+            (&raw, "a b c", "name:b c", "file/b c"),
+            (&escaped, "a b", "name:b", "file/b"),
+            (&escaped, "a b c", "name:b c", "file/b%20c"),
         ];
 
-        for (entry_type, searchtext, query, rawparam, escapedparam) in tests {
+        for (entry_type, searchtext, formatted_name, formatted_selection) in tests {
             entry.keyword = entry_type.clone();
-            let res = SearchResult::new(&entry, searchtext);
 
             assert_eq!(
-                query, res.query,
-                r#"query:"{:?}" -> "{:?}" failed: "#,
-                searchtext, query
-            );
-
-            assert_eq!(
-                rawparam, res.param,
-                r#"param:"{}" -> "{}" failed: "#,
-                searchtext, rawparam
-            );
-
-            assert_eq!(
-                escapedparam,
-                res.escaped_param(),
-                r#"escaped_param:"{}" -> "{}" failed: "#,
+                formatted_name,
+                entry.format_name(searchtext),
+                r#"formatted_name:"{}" -> "{}" failed: "#,
                 searchtext,
-                escapedparam
+                formatted_name
+            );
+
+            assert_eq!(
+                formatted_selection,
+                entry.format_selection(searchtext),
+                r#"format_selection:"{}" -> "{}" failed: "#,
+                searchtext,
+                formatted_selection
             );
         }
     }

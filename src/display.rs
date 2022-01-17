@@ -18,7 +18,7 @@ impl<'a> Entry<'a> {
         Entry {
             selected: false,
             entry: entry,
-            title: entry.formatted_name(searchtext),
+            title: entry.format_name(searchtext),
         }
     }
 
