@@ -1,22 +1,68 @@
-# Overview 
-Jolly is a small bookmarking application for desktop usage.
+# <img src="icon/jolly.svg" style="height: 1em;"/> Jolly <img src="icon/jolly.svg" style="height: 1em;"/>
+Jolly is a small bookmarking launcher for desktop usage.
 
 It extends the concept of your browser bookmarking interface, but
-alows these bookmarks to access files on your local file system, as
-run commands in your shell.
+allows these bookmarks to access files on your local file system, as
+well as run commands in your shell.
+
+https://user-images.githubusercontent.com/1356587/208987327-9a314312-8216-4ef9-a373-0e4ddf710bff.mp4
+
+# Installation
+
+Jolly is hard to install right now. There are no automated builds set
+up yet, and it is not published to crates.io yet. The only way to
+install it is to clone the repository and build it with `cargo build`
+
+# Quick Introduction
+
+To use Jolly, simply run the `jolly` executable. Jolly will look for a
+suitable [configuration file](docs/file-format.md#locations) `jolly.toml`. 
+
+By default, Jolly won't show any results: just tell you how many entries it has loaded:
+
+![startup page](docs/static/startup.png)
+
+You can search for an entry by typing in text: Jolly will use the
+title of the entry and any [tags](docs/file-format.md#tags) associated
+with the entry to find results:
+
+![startup page](docs/static/basic-search.png)
+
+To open the entry, you can select it using the arrow and enter keys,
+or click it with the mouse.
+
+To learn more about the file format used by Jolly, see the [file-format](docs/file-format.md) page.
+
+To learn more advanced tips and tricks, see the [advanced](docs/advanced.md) usage page.
 
 # Why was this created
-My work requires collaborating with others using files stored on
-network shared drives. ( a common working model). While browsers have
-gotten very good at storing bookmarks to web applications, they are
-not optimized for storing links documents that need to open in other
-programs (for example, excel spreadsheets). They also are not very
-good about mixing URL encoding with shell-escaping. 
+There are a lot of really good full featured launcher programs out
+there, for example, consider [launchy](https://www.launchy.net/),
+[rofi](https://github.com/davatorium/rofi),
+or [alfred](https://www.alfredapp.com/). These launcher programs tended
+to be packed with features, allowing you to do tons of different
+actions: for example, accessing any installed program or searching for
+any document on your computer. This can be quite powerful, but it can
+be overwhelming to see all the choices. 
 
-There are also plenty of programs that index documents and allow for
-searching them (For example, the venerable
-[launchy](https://www.launchy.net/)). This is a different usecase
-though that requires searching and indexing documents. Jolly solves
-the problem a simpler way, by requiring the user to add tags to
-documents for the filtering.
+On the other end of the spectrum are notetaking applications, such as
+[onenote](https://www.onenote.com), [obsidian](https://obsidian.md/),
+or [org mode](https://orgmode.org/). These are also super powerful,
+and solve the "noise" problem that launchers have, by only including
+content that is curated by the user. However, they are focused on the
+usecase of storing knowledge, not on quickly launching apps and links,
+which means it can take a couple of click to open a bookmark, instead
+of the nearly instantaneous feedback of a launcher app.
+
+The other obvious option here would be your web browser. And lets be
+honest, your web browser's search bar and bookmark interface has
+thousands more hours of development time poured into it:
+Jolly can't possibly hope to compete. However, web browsers are
+focused on web content only, which means that local files and external
+programs are annoyingly sandboxed away, hard to use with the bookmark
+interface. 
+
+Hence Jolly: the curation of notetaking apps, with the instantaneous
+gratification of an app launcher, and sharp edges exposed that your
+web browser doesn't want you to have.
 
