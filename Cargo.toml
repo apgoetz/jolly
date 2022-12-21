@@ -2,8 +2,13 @@
 name = "jolly"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT OR Apache-2.0"
+description = "small bookmarking launcher for desktop usage, developed with iced"
+homepage = "https://github.com/apgoetz/jolly"
+documentation = "https://github.com/apgoetz/jolly"
+repository = "https://github.com/apgoetz/jolly"
+readme = "README.md"
+keywords = ["launcher","bookmarks", "iced"]
 
 [dependencies]
 iced = {git = "https://github.com/iced-rs/iced.git", rev = "aeec037"}
