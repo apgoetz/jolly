@@ -1,8 +1,7 @@
 // contains logic for displaying entries
 use crate::platform;
 use crate::store;
-use iced_native::{event, keyboard, layout, mouse, renderer, text, widget};
-use std::hash::Hash;
+use iced_native::{event, keyboard, layout, mouse, renderer, text, widget, Shell};
 
 type Message = store::StoreEntry;
 
@@ -52,7 +51,9 @@ where
 
     fn draw(
         &self,
+        _state: &widget::Tree,
         renderer: &mut Renderer,
+        _theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: layout::Layout<'_>,
         _cursor_position: iced_native::Point,
@@ -70,7 +71,7 @@ where
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: bounds,
-                    border_radius: 5.0,
+                    border_radius: 5.0.into(),
                     border_width: 1.0,
                     border_color: iced_native::Color::TRANSPARENT,
                 },
@@ -94,22 +95,15 @@ where
         });
     }
 
-    fn hash_layout(&self, state: &mut iced_native::Hasher) {
-        // this is cargo cult :-(
-        struct Marker;
-        std::any::TypeId::of::<Marker>().hash(state);
-        // only thing that can affect is the entry
-        self.entry.hash(state)
-    }
-
     fn on_event(
         &mut self,
+        _state: &mut widget::Tree,
         event: event::Event,
         layout: layout::Layout<'_>,
         cursor_position: iced_native::Point,
         _renderer: &Renderer,
         _clipboard: &mut dyn iced_native::Clipboard,
-        messages: &mut Vec<Message>,
+        shell: &mut Shell<'_, Message>,
     ) -> event::Status {
         match event {
             // if we are clicked on
@@ -117,7 +111,7 @@ where
                 if button == mouse::Button::Left =>
             {
                 if layout.bounds().contains(cursor_position) {
-                    messages.push(self.entry.clone());
+                    shell.publish(self.entry.clone());
                     event::Status::Captured
                 } else {
                     event::Status::Ignored
@@ -131,7 +125,7 @@ where
                 if (code == keyboard::KeyCode::NumpadEnter || code == keyboard::KeyCode::Enter)
                     && self.selected
                 {
-                    messages.push(self.entry.clone());
+                    shell.publish(self.entry.clone());
                     event::Status::Captured
                 } else {
                     event::Status::Ignored
@@ -140,7 +134,7 @@ where
             // somehow on linux, the numpad key is "carriage return"
             event::Event::Keyboard(keyboard::Event::CharacterReceived(c)) => {
                 if (c == '\r') && self.selected {
-                    messages.push(self.entry.clone());
+                    shell.publish(self.entry.clone());
                     event::Status::Captured
                 } else {
                     event::Status::Ignored

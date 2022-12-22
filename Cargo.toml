@@ -11,8 +11,8 @@ readme = "README.md"
 keywords = ["launcher","bookmarks", "iced"]
 
 [dependencies]
-iced = {git = "https://github.com/iced-rs/iced.git", rev = "aeec037"}
-iced_native = {git = "https://github.com/iced-rs/iced.git", rev = "aeec037"}
+iced = "0.6.0"
+iced_native = "0.7.0"
 toml = { version = "0.5.8", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 dirs = "4"

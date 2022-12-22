@@ -1,7 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use blocking;
-use iced::{executor, text_input, Application, Command, Element, Settings, TextInput};
+use iced::widget::TextInput;
+use iced::{executor, Application, Command, Element, Settings, Theme};
+use iced_native::widget::text_input;
 use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
+use lazy_static;
 use std::path;
 
 mod display;
@@ -18,6 +21,9 @@ const UI_STARTING_HEIGHT: u32 = (UI_DEFAULT_TEXT_SIZE + 2 * UI_DEFAULT_PADDING) 
 const UI_MAX_RESULTS: u32 = 5;
 const LOGFILE_NAME: &str = "jolly.toml";
 
+lazy_static::lazy_static! {
+    static ref TEXT_INPUT_ID : text_input::Id = text_input::Id::unique();
+}
 #[derive(Debug, Clone)]
 enum Message {
     StoreLoaded(Result<store::Store, String>),
@@ -55,7 +61,6 @@ impl StoreLoadedState {
 #[derive(Default)]
 struct Jolly {
     searchtext: String,
-    searchtextstate: text_input::State,
     should_exit: bool,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
@@ -104,13 +109,16 @@ impl Application for Jolly {
     type Message = Message;
     type Executor = executor::Default;
     type Flags = ();
+    type Theme = Theme;
 
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        let mut jolly = Self::default();
-        jolly.searchtextstate.focus();
+        let jolly = Self::default();
         (
             jolly,
-            Command::perform(blocking::unblock(get_store), Message::StoreLoaded),
+            Command::batch([
+                text_input::focus(TEXT_INPUT_ID.clone()),
+                Command::perform(blocking::unblock(get_store), Message::StoreLoaded),
+            ]),
         )
     }
 
@@ -178,7 +186,7 @@ impl Application for Jolly {
         subscription::events().map(Message::ExternalEvent)
     }
 
-    fn view(&mut self) -> Element<Self::Message> {
+    fn view(&self) -> Element<Self::Message> {
         use StoreLoadedState::*;
         let default_txt = match &self.store_state {
             Pending => "Loading Bookmarks... ",
@@ -188,13 +196,9 @@ impl Application for Jolly {
 
         let mut column = widget::column::Column::new();
         column = column.push(
-            TextInput::new(
-                &mut self.searchtextstate,
-                default_txt,
-                &self.searchtext,
-                Message::SearchTextChanged,
-            )
-            .padding(UI_DEFAULT_PADDING),
+            TextInput::new(default_txt, &self.searchtext, Message::SearchTextChanged)
+                .id(TEXT_INPUT_ID.clone())
+                .padding(UI_DEFAULT_PADDING),
         );
         column = column.push(
             self.search_results
