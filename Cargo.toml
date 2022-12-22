@@ -9,6 +9,7 @@ documentation = "https://github.com/apgoetz/jolly"
 repository = "https://github.com/apgoetz/jolly"
 readme = "README.md"
 keywords = ["launcher","bookmarks", "iced"]
+exclude = ["docs/"]
 
 [dependencies]
 iced = "0.6.0"
