@@ -22,19 +22,18 @@ opener = "0.5.0"
 urlencoding = "2.1.0"
 lazy_static = "1"
 
-[target.'cfg(windows)'.dependencies.windows]
-version = "0.29.0"
-features = [
-	 'UI_ViewManagement'
-]
-
 [dev-dependencies] 
 tempfile = "3"
 
 [target.'cfg(windows)'.build-dependencies]
-resvg = "0.20.0"
-usvg = "0.20.0"
-tiny-skia = "0.6.1"
-ico = "0.1.0"
+resvg = "0.28.0"
+usvg = "0.28.0"
+tiny-skia = "0.8.2"
+ico = "0.2.0"
 winres = "0.1.12"
 
+[target.'cfg(windows)'.dependencies.windows]
+version = "0.43.0"
+features = [
+	 'UI_ViewManagement'
+]
