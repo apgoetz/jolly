@@ -12,11 +12,10 @@ fn main() {
     // render SVG as PNG
     let opt = usvg::Options::default();
     let svg_data = std::fs::read("icon/jolly.svg").unwrap();
-    let rtree = usvg::Tree::from_data(&svg_data, &opt.to_ref()).unwrap();
+    let rtree = usvg::Tree::from_data(&svg_data, &opt).unwrap();
     let width: u32 = 256;
     let height = width;
     let pixmap_size = rtree
-        .svg_node()
         .size
         .scale_to(usvg::Size::new(width.into(), height.into()).unwrap())
         .to_screen_size();
