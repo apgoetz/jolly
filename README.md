@@ -5,7 +5,7 @@ It extends the concept of your browser bookmarking interface, but
 allows these bookmarks to access files on your local file system, as
 well as run commands in your shell.
 
-https://user-images.githubusercontent.com/1356587/208987327-9a314312-8216-4ef9-a373-0e4ddf710bff.mp4
+https://user-images.githubusercontent.com/1356587/209451235-6911e5f1-fb4d-4348-903b-ea75bcbff0ca.mp4
 
 # Installation
 
