@@ -61,13 +61,15 @@ jobs:
         if [ "${{ matrix.os }}" = "windows-2022" ]; then
           cp "target/release/jolly.exe" "$staging/"
           7z a "$staging.zip" "$staging"
+          echo "ASSET=$staging.zip" >> $GITHUB_ENV
         else
           cp "target/release/jolly" "$staging/"
           tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
         fi
 
     - name: Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ needs.create_release.outputs.tag-name }}
-        files: jolly-${{  github.ref_name }}-${{ matrix.target }}
+        files: ${{ env.ASSET }}
