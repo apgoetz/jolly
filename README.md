@@ -9,9 +9,13 @@ https://user-images.githubusercontent.com/1356587/209451235-6911e5f1-fb4d-4348-9
 
 # Installation
 
-Jolly is hard to install right now. There are no automated builds set
-up yet, and it is not published to crates.io yet. The only way to
-install it is to clone the repository and build it with `cargo build`
+The latest release of Jolly can be found on github [here](https://github.com/apgoetz/jolly/releases/latest)
+
+Alternatively, for rust users, Jolly can be installed via cargo:
+
+```bash
+cargo install jolly
+```
 
 # Quick Introduction
 
