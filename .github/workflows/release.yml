@@ -53,16 +53,16 @@ jobs:
       shell: bash
       run: |
         staging="jolly-${{  github.ref_name }}-${{ matrix.target }}"
-        mkdir -p "$staging"/docs
+        mkdir -p "$staging"
 
         cp {README.md,LICENSE-APACHE,LICENSE-MIT,CHANGELOG.md} "$staging/"
-        cp docs/* "$staging/docs/"
+        cp -r docs "$staging"
 
         if [ "${{ matrix.os }}" = "windows-2022" ]; then
           cp "target/release/jolly.exe" "$staging/"
           7z a "$staging.zip" "$staging"
         else
-          cp "target/jolly/release/jolly" "$staging/"
+          cp "target/release/jolly" "$staging/"
           tar czf "$staging.tar.gz" "$staging"
         fi
 
