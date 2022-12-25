@@ -1,0 +1,85 @@
+# The way this works is the following:
+#
+# The create-release job runs purely to initialize the GitHub release itself
+# and to output upload_url for the following job.
+#
+# The build-release job runs only once create-release is finished. It gets the
+# release upload URL from create-release job outputs, then builds the release
+# executables for each supported platform and attaches them as release assets
+# to the previously created release.
+#
+# The key here is that we create the release only once.
+#
+# Reference:
+# https://eugene-babichenko.github.io/blog/2020/05/09/github-actions-cross-platform-auto-releases/
+
+name: release
+on:
+  push:
+    # Enable when testing release infrastructure on a branch.
+    # branches:
+    # - ag/work
+    tags:
+    - "[0-9]+.[0-9]+.[0-9]+"
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+
+  build-release:
+    name: build-release
+    needs: create_release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+        - os: ubuntu-latest
+          target: x86_64-unknown-linux-musl
+        - os: macos-latest
+          target: x86_64-apple-darwin
+        - os: windows-latest
+          target: x86_64-pc-windows-msvc
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Build release binary
+      run: cargo build --verbose --release
+
+    - name: Strip release binary (linux and macos)
+      if: matrix.build == 'linux' || matrix.build == 'macos'
+      run: strip "target/release/rg"
+
+    - name: Build archive
+      shell: bash
+      run: |
+        staging="jolly-${{  github.ref_name }}-${{ matrix.target }}"
+        mkdir -p "$staging"/docs
+
+        cp {README.md,LICENSE-APACHE,LICENSE-MIT, CHANGELOG.md} "$staging/"
+        cp docs/* "$staging/docs/"
+
+        if [ "${{ matrix.os }}" = "windows-2022" ]; then
+          cp "target/release/jolly.exe" "$staging/"
+          7z a "$staging.zip" "$staging"
+        else
+          cp "target/jolly/release/jolly" "$staging/"
+          tar czf "$staging.tar.gz" "$staging"
+        fi
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.create_release.outputs.tag-name }}
+        files: jolly-${{  github.ref_name }}-${{ matrix.target }}
