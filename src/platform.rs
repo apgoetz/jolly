@@ -4,7 +4,6 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::io;
 use std::path::Path;
-use std::process::Command;
 
 #[derive(Debug)]
 pub enum Error {
@@ -39,14 +38,26 @@ const DEFAULT_ACCENT_COLOR: iced_native::Color = iced_native::Color {
 // based on subprocess crate
 #[cfg(unix)]
 mod os {
-    pub const SHELL: [&str; 2] = ["sh", "-c"];
+    use std::ffi::OsStr;
+    use std::process::Command;
+
+    const SHELL: [&str; 2] = ["sh", "-c"];
     pub const ACCENT_COLOR: &'static iced_native::Color = &super::DEFAULT_ACCENT_COLOR;
+
+    // run a subshell and interpret results
+    pub fn system(cmdstr: impl AsRef<OsStr>) -> std::io::Result<std::process::Child> {
+        Command::new(SHELL[0]).args(&SHELL[1..]).arg(cmdstr).spawn()
+    }
 }
 
 #[cfg(windows)]
 mod os {
+    use std::ffi::OsStr;
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
     use windows::UI::ViewManagement::{UIColorType, UISettings};
-    pub const SHELL: [&str; 2] = ["cmd.exe", "/c"];
+
+    const SHELL: [&str; 2] = ["cmd.exe", "/c"];
 
     // try and get the windows accent color. This wont work for
     // windows < 10
@@ -66,21 +77,25 @@ mod os {
         }
     };
     }
+
+    // run a subshell and interpret results
+    pub fn system(cmdstr: impl AsRef<OsStr>) -> std::io::Result<std::process::Child> {
+        Command::new(SHELL[0])
+            //spawn the command window without a console (CREATE_NO_WINDOW)
+            // see https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags
+            .creation_flags(0x08000000)
+            .args(&SHELL[1..])
+            .arg(cmdstr)
+            .spawn()
+    }
 }
-use os::*;
+
+pub fn system(cmdstr: impl AsRef<OsStr>) -> Result<(), Error> {
+    os::system(cmdstr).map(|_| ()).map_err(Error::IoError)
+}
 
 pub fn accent_color() -> iced_native::Color {
-    *ACCENT_COLOR
-}
-
-// run a subshell and interpret results
-pub fn system(cmdstr: impl AsRef<OsStr>) -> Result<(), Error> {
-    Command::new(SHELL[0])
-        .args(&SHELL[1..])
-        .arg(cmdstr)
-        .spawn()
-        .map(|_| ())
-        .map_err(Error::IoError)
+    *os::ACCENT_COLOR
 }
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<(), Error> {
