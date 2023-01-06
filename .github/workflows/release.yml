@@ -40,7 +40,7 @@ jobs:
 
     - name: Strip release binary (linux and macos)
       if: matrix.build == 'linux' || matrix.build == 'macos'
-      run: strip "target/release/rg"
+      run: strip "target/release/jolly"
 
     - name: Build archive
       shell: bash

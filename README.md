@@ -17,6 +17,12 @@ Alternatively, for rust users, Jolly can be installed via cargo:
 cargo install jolly
 ```
 
+**Regarding Minimum Supported Rust Version**: Jolly
+uses [iced](https://github.com/iced-rs/iced) for its GUI implementation, which
+is a fast moving project that generally only targets the latest stable
+rustc. Therefore Jolly will also usually target the same MSRV as
+`iced`. (Currently 1.65.0)
+
 # Quick Introduction
 
 To use Jolly, simply run the `jolly` executable. Jolly will look for a
@@ -69,4 +75,3 @@ interface.
 Hence Jolly: the curation of notetaking apps, with the instantaneous
 gratification of an app launcher, and sharp edges exposed that your
 web browser doesn't want you to have.
-
