@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
     - name: Check Formatting
       run: cargo fmt --all --check
   
@@ -24,7 +26,20 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Determine MSRV
+      shell: bash
+      run: |
+        msrv=$(grep rust-version Cargo.toml | cut -d '"' -f2)
+        echo "MSRV=$msrv" >> $GITHUB_ENV
+
+    - name: Install MSRV rustc
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ env.MSRV }}
+
     - name: Build
       run: cargo build --verbose
     - name: Run tests
