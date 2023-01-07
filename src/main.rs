@@ -116,6 +116,9 @@ impl Application for Jolly {
         (
             jolly,
             Command::batch([
+                Command::single(command::Action::Window(window::Action::SetMode(
+                    window::Mode::Windowed,
+                ))),
                 text_input::focus(TEXT_INPUT_ID.clone()),
                 Command::perform(blocking::unblock(get_store), Message::StoreLoaded),
             ]),
@@ -239,6 +242,7 @@ pub fn main() -> Result<(), error::Error> {
     let mut settings = Settings::default();
     settings.window.size = (UI_WIDTH, UI_STARTING_HEIGHT);
     settings.window.decorations = false;
+    settings.window.visible = false;
     settings.default_text_size = UI_DEFAULT_TEXT_SIZE;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }
