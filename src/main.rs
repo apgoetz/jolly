@@ -5,12 +5,13 @@ use iced::{executor, Application, Command, Element, Settings, Theme};
 use iced_native::widget::text_input;
 use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
 use lazy_static;
-use std::path;
 
+mod config;
 mod display;
 mod error;
 mod platform;
 mod search_results;
+mod settings;
 mod store;
 
 // constants used to define window shape
@@ -19,14 +20,13 @@ const UI_DEFAULT_PADDING: u16 = 10;
 const UI_WIDTH: u32 = 800;
 const UI_STARTING_HEIGHT: u32 = (UI_DEFAULT_TEXT_SIZE + 2 * UI_DEFAULT_PADDING) as u32;
 const UI_MAX_RESULTS: u32 = 5;
-const LOGFILE_NAME: &str = "jolly.toml";
 
 lazy_static::lazy_static! {
     static ref TEXT_INPUT_ID : text_input::Id = text_input::Id::unique();
 }
 #[derive(Debug, Clone)]
 enum Message {
-    StoreLoaded(Result<store::Store, String>),
+    ConfigLoaded(Result<(settings::Settings, store::Store), String>),
     SearchTextChanged(String),
     ExternalEvent(event::Event),
     EntrySelected(store::StoreEntry),
@@ -120,7 +120,10 @@ impl Application for Jolly {
                     window::Mode::Windowed,
                 ))),
                 text_input::focus(TEXT_INPUT_ID.clone()),
-                Command::perform(blocking::unblock(get_store), Message::StoreLoaded),
+                Command::perform(
+                    blocking::unblock(config::load_config),
+                    Message::ConfigLoaded,
+                ),
             ]),
         )
     }
@@ -167,11 +170,11 @@ impl Application for Jolly {
                 self.search_results.handle_kb(e);
                 Command::none()
             }
-            Message::StoreLoaded(Err(err)) => {
+            Message::ConfigLoaded(Err(err)) => {
                 self.store_state = StoreLoadedState::LoadFailed(err.to_string());
                 Command::none()
             }
-            Message::StoreLoaded(Ok(store)) => {
+            Message::ConfigLoaded(Ok((_, store))) => {
                 let msg = format!("Loaded {} entries", store.len());
                 self.store_state = StoreLoadedState::LoadSucceeded(store, msg);
                 Command::none()
@@ -209,33 +212,6 @@ impl Application for Jolly {
         );
         column.into()
     }
-}
-
-fn get_logfile() -> Result<path::PathBuf, error::Error> {
-    let local_path = path::Path::new(LOGFILE_NAME);
-    if local_path.exists() {
-        return Ok(local_path.to_path_buf());
-    }
-
-    let config_dir = dirs::config_dir().ok_or(error::Error::CustomError(
-        "Cannot Determine Config Dir".to_string(),
-    ))?;
-    let config_path = config_dir.join(LOGFILE_NAME);
-    if config_path.exists() {
-        Ok(config_path)
-    } else {
-        Err(error::Error::CustomError(format!(
-            "Cannot find {}",
-            LOGFILE_NAME
-        )))
-    }
-}
-
-fn get_store() -> Result<store::Store, String> {
-    let logfile = get_logfile().map_err(|e| e.to_string())?;
-    store::load_store(logfile)
-        .map_err(error::Error::StoreError)
-        .map_err(|e| e.to_string())
 }
 
 pub fn main() -> Result<(), error::Error> {
