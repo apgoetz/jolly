@@ -615,14 +615,6 @@ mod tests {
         }
     }
 
-    // this test is just a playground to see what toml is rendered as
-    #[test]
-    #[ignore]
-    fn toml_test() {
-        let text = r#"bare_key = 1"#;
-        panic!("{:?}", toml::from_str::<toml::Value>(text))
-    }
-
     #[test]
     fn bare_keys_not_allowed() {
         let toml = r#"bare_key = 42"#;

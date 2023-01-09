@@ -1,5 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use blocking;
 use iced::widget::TextInput;
 use iced::{executor, Application, Command, Element, Settings, Theme};
 use iced_native::widget::text_input;
@@ -13,20 +12,13 @@ mod platform;
 mod search_results;
 mod settings;
 mod store;
-
-// constants used to define window shape
-const UI_DEFAULT_TEXT_SIZE: u16 = 20;
-const UI_DEFAULT_PADDING: u16 = 10;
-const UI_WIDTH: u32 = 800;
-const UI_STARTING_HEIGHT: u32 = (UI_DEFAULT_TEXT_SIZE + 2 * UI_DEFAULT_PADDING) as u32;
-const UI_MAX_RESULTS: u32 = 5;
+mod ui;
 
 lazy_static::lazy_static! {
     static ref TEXT_INPUT_ID : text_input::Id = text_input::Id::unique();
 }
 #[derive(Debug, Clone)]
 enum Message {
-    ConfigLoaded(Result<(settings::Settings, store::Store), String>),
     SearchTextChanged(String),
     ExternalEvent(event::Event),
     EntrySelected(store::StoreEntry),
@@ -65,6 +57,7 @@ struct Jolly {
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
     modifiers: keyboard::Modifiers,
+    settings: settings::Settings,
 }
 
 impl Jolly {
@@ -73,8 +66,8 @@ impl Jolly {
         self.searchtext = String::new();
         self.search_results = Default::default();
         Command::single(command::Action::Window(window::Action::Resize {
-            width: UI_WIDTH,
-            height: UI_STARTING_HEIGHT,
+            width: self.settings.ui.width,
+            height: self.settings.ui.starting_height(),
         }))
     }
 
@@ -108,11 +101,22 @@ impl Jolly {
 impl Application for Jolly {
     type Message = Message;
     type Executor = executor::Default;
-    type Flags = ();
+    type Flags = config::Config;
     type Theme = Theme;
 
-    fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        let jolly = Self::default();
+    fn new(config: Self::Flags) -> (Self, Command<Self::Message>) {
+        let mut jolly = Self::default();
+
+        jolly.settings = config.settings;
+
+        jolly.store_state = match config.store {
+            Ok(store) => {
+                let msg = format!("Loaded {} entries", store.len());
+                StoreLoadedState::LoadSucceeded(store, msg)
+            }
+            Err(e) => StoreLoadedState::LoadFailed(e.to_string()),
+        };
+
         (
             jolly,
             Command::batch([
@@ -120,10 +124,6 @@ impl Application for Jolly {
                     window::Mode::Windowed,
                 ))),
                 text_input::focus(TEXT_INPUT_ID.clone()),
-                Command::perform(
-                    blocking::unblock(config::load_config),
-                    Message::ConfigLoaded,
-                ),
             ]),
         )
     }
@@ -141,13 +141,17 @@ impl Application for Jolly {
                 if let Some(store) = self.store_state.store() {
                     let matches = store.find_matches(&self.searchtext).into_iter();
                     // unwrap will never panic since UI_MAX_RESULTS is const
-                    let max_num = UI_MAX_RESULTS.min(matches.len().try_into().unwrap());
+                    let max_num = self
+                        .settings
+                        .ui
+                        .max_results
+                        .min(matches.len().try_into().unwrap());
                     self.search_results = search_results::SearchResults::new(
                         matches.take(max_num.try_into().unwrap()),
                     );
                     Command::single(command::Action::Window(window::Action::Resize {
-                        width: UI_WIDTH,
-                        height: (1 + max_num) * UI_STARTING_HEIGHT,
+                        width: self.settings.ui.width,
+                        height: (1 + max_num) * self.settings.ui.starting_height(),
                     }))
                 } else {
                     Command::none()
@@ -168,15 +172,6 @@ impl Application for Jolly {
                     self.modifiers = m;
                 }
                 self.search_results.handle_kb(e);
-                Command::none()
-            }
-            Message::ConfigLoaded(Err(err)) => {
-                self.store_state = StoreLoadedState::LoadFailed(err.to_string());
-                Command::none()
-            }
-            Message::ConfigLoaded(Ok((_, store))) => {
-                let msg = format!("Loaded {} entries", store.len());
-                self.store_state = StoreLoadedState::LoadSucceeded(store, msg);
                 Command::none()
             }
             Message::EntrySelected(entry) => self.handle_selection(entry),
@@ -204,7 +199,7 @@ impl Application for Jolly {
         column = column.push(
             TextInput::new(default_txt, &self.searchtext, Message::SearchTextChanged)
                 .id(TEXT_INPUT_ID.clone())
-                .padding(UI_DEFAULT_PADDING),
+                .padding(self.settings.ui.default_padding),
         );
         column = column.push(
             self.search_results
@@ -215,10 +210,15 @@ impl Application for Jolly {
 }
 
 pub fn main() -> Result<(), error::Error> {
+    let config = config::Config::load();
     let mut settings = Settings::default();
-    settings.window.size = (UI_WIDTH, UI_STARTING_HEIGHT);
+    settings.window.size = (
+        config.settings.ui.width,
+        config.settings.ui.starting_height(),
+    );
     settings.window.decorations = false;
     settings.window.visible = false;
-    settings.default_text_size = UI_DEFAULT_TEXT_SIZE;
+    settings.default_text_size = config.settings.ui.default_text_size;
+    settings.flags = config;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }
