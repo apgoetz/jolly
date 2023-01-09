@@ -3,65 +3,90 @@
 // settings are parameters for the program
 // store represents the links that are stored in jolly
 
-use crate::{error, settings::Settings, store};
+use crate::{error::Error, settings::Settings, store::Store};
 use serde::Deserialize;
 use std::{fs, path};
 use toml;
 
 pub const LOGFILE_NAME: &str = "jolly.toml";
 
-pub fn load_config() -> Result<(Settings, store::Store), String> {
-    let logfile = get_logfile().map_err(|e| e.to_string())?;
-    load_path(logfile).map_err(|e| e.to_string())
+// represents the data that is loaded from the main configuration file
+// it will always have some settings internally, even if the config
+// file is not found.  if there is an error parsing the config, a
+// default value for settings will be used so at least a window will
+// show
+pub struct Config {
+    pub settings: Settings,
+    pub store: Result<Store, Error>,
 }
 
-fn load_path<P: AsRef<path::Path>>(path: P) -> Result<(Settings, store::Store), error::Error> {
-    let txt = fs::read_to_string(path).map_err(error::Error::IoError)?;
-    load_txt(&txt)
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            settings: Settings::default(),
+            store: Err(Error::CustomError("".to_string())),
+        }
+    }
 }
 
-fn load_txt(txt: &str) -> Result<(Settings, store::Store), error::Error> {
-    let value: toml::Value =
-        toml::from_str(txt).map_err(|e| error::Error::ParseError(e.to_string()))?;
-
-    let mut parsed_config = match value {
-        toml::Value::Table(t) => t,
-        _ => return Err(error::Error::ParseError("entry is not a Table".to_string())),
-    };
-
-    // if we have a settings entry use it, otherwise deserialize something empty and rely on serde defaults
-    let config = match parsed_config.remove("config") {
-        Some(config) => config,
-        None => toml::Value::Table(toml::value::Table::new()),
-    };
-
-    let settings =
-        Settings::deserialize(config).map_err(|e| error::Error::ParseError(e.to_string()))?;
-
-    // get config as table of top level entries
-    let store = store::Store::build(parsed_config.into_iter()).map_err(error::Error::StoreError)?; // todo fix unwrap
-
-    Ok((settings, store))
+impl Config {
+    pub fn load() -> Self {
+        match get_logfile().map(load_path) {
+            Ok(config) => config.unwrap_or_else(|e| Self {
+                settings: Settings::default(),
+                store: Err(e),
+            }),
+            Err(e) => Self {
+                settings: Settings::default(),
+                store: Err(e),
+            },
+        }
+    }
 }
 
-fn get_logfile() -> Result<path::PathBuf, error::Error> {
+fn get_logfile() -> Result<path::PathBuf, Error> {
     let local_path = path::Path::new(LOGFILE_NAME);
     if local_path.exists() {
         return Ok(local_path.to_path_buf());
     }
 
-    let config_dir = dirs::config_dir().ok_or(error::Error::CustomError(
+    let config_dir = dirs::config_dir().ok_or(Error::CustomError(
         "Cannot Determine Config Dir".to_string(),
     ))?;
     let config_path = config_dir.join(LOGFILE_NAME);
     if config_path.exists() {
         Ok(config_path)
     } else {
-        Err(error::Error::CustomError(format!(
-            "Cannot find {}",
-            LOGFILE_NAME
-        )))
+        Err(Error::CustomError(format!("Cannot find {}", LOGFILE_NAME)))
     }
+}
+
+fn load_path<P: AsRef<path::Path>>(path: P) -> Result<Config, Error> {
+    let txt = fs::read_to_string(path).map_err(Error::IoError)?;
+    load_txt(&txt)
+}
+
+fn load_txt(txt: &str) -> Result<Config, Error> {
+    let value: toml::Value = toml::from_str(txt).map_err(|e| Error::ParseError(e.to_string()))?;
+
+    let mut parsed_config = match value {
+        toml::Value::Table(t) => t,
+        _ => return Err(Error::ParseError("entry is not a Table".to_string())),
+    };
+
+    // if we have a settings entry use it, otherwise deserialize something empty and rely on serde defaults
+
+    let settings = match parsed_config.remove("config") {
+        Some(config) => {
+            Settings::deserialize(config).map_err(|e| Error::ParseError(e.to_string()))?
+        }
+        None => Settings::default(),
+    };
+
+    // get config as table of top level entries
+    let store = Store::build(parsed_config.into_iter()).map_err(Error::StoreError);
+
+    Ok(Config { settings, store })
 }
 
 #[cfg(test)]
@@ -70,34 +95,49 @@ mod tests {
 
     #[test]
     fn empty_file_is_valid() {
-        let (settings, _store) = load_txt("").unwrap();
-        assert_eq!(settings, Settings::default());
+        let config = load_txt("").unwrap();
+        assert_eq!(config.settings, Settings::default());
     }
 
     #[test]
     fn partial_settings_uses_default() {
-        let toml = r#"['config']
-		    ui_width = 42"#;
+        let toml = r#"[config]
+		    ui = {width = 42 }"#;
 
-        let (settings, _store) = load_txt(toml).unwrap();
+        let config = load_txt(toml).unwrap();
 
-        assert_eq!(settings.ui_max_results, Settings::default().ui_max_results);
-        assert_ne!(settings.ui_width, Settings::default().ui_width);
+        assert_eq!(
+            config.settings.ui.max_results,
+            Settings::default().ui.max_results
+        );
+        assert_ne!(config.settings.ui.width, Settings::default().ui.width);
+    }
+
+    #[test]
+    fn invalid_entry_keeps_non_default_settings() {
+        let toml = r#"a = 1
+                    [config.ui]
+		    width = 42"#;
+
+        let config = load_txt(toml).unwrap();
+
+        assert_ne!(config.settings, Settings::default());
+        assert!(matches!(config.store, Err(Error::StoreError(_))));
     }
 
     #[test]
     fn extraneous_setting_allowed() {
-        let toml = r#"['config']
+        let toml = r#"[config]
 		    not_a_real_setting = 42"#;
 
-        let (settings, _store) = load_txt(toml).unwrap();
+        let config = load_txt(toml).unwrap();
 
-        assert_eq!(settings, Settings::default());
+        assert_eq!(config.settings, Settings::default());
     }
 
     #[test]
     fn nonexistent_path() {
         let result = load_path("nonexistentfile.toml");
-        assert!(matches!(result, Err(error::Error::IoError(_))));
+        assert!(matches!(result, Err(Error::IoError(_))));
     }
 }
