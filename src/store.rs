@@ -8,16 +8,16 @@
 // system = 'cmd to run'# can contain mozilla style query string (single %s)
 // keyword = 'k' # keyword used for mozilla style query strings
 // escape = true # only valid for keyword entries, determines if query string is escaped.
+use serde;
 use serde::Deserialize;
 use std::error;
 use std::fmt;
-use std::fs;
 use std::hash::Hash;
 use std::ops::Deref;
-use std::path::Path;
 use toml;
 use urlencoding;
 
+use crate::config::LOGFILE_NAME;
 use crate::platform;
 
 // these are the weights for the different kind of matches.
@@ -32,7 +32,8 @@ const FULL_TAG_W: u32 = 6;
 #[derive(Debug)]
 pub enum Error {
     IOError(std::io::Error),
-    ParseError(toml::de::Error),
+    ParseError(String),
+    BareKeyError(String),
     CustomError(String),
     PlatformError(platform::Error),
 }
@@ -42,6 +43,13 @@ impl fmt::Display for Error {
         match self {
             Error::IOError(e) => e.fmt(f),
             Error::PlatformError(e) => e.fmt(f),
+            Error::BareKeyError(e) => {
+                write!(
+                    f,
+                    "Invalid {} entry '{}': Jolly entries can only be TOML tables",
+                    LOGFILE_NAME, e
+                )
+            }
             Error::ParseError(e) => {
                 write!(f, "TOML Error: ")?;
                 e.fmt(f)
@@ -53,7 +61,7 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {}
 
-#[derive(Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug)]
 struct RawStoreEntry {
     location: Option<String>,
     url: Option<String>,
@@ -87,7 +95,12 @@ pub enum EntryType {
 impl StoreEntry {
     // parse a toml value into a store entry
     fn from_value(name: String, val: toml::Value) -> Result<Self, Error> {
-        let raw_entry: RawStoreEntry = val.try_into().map_err(|e| Error::ParseError(e))?;
+        if !val.is_table() {
+            return Err(Error::BareKeyError(name));
+        }
+
+        let raw_entry =
+            RawStoreEntry::deserialize(val).map_err(|e| Error::ParseError(e.to_string()))?;
 
         let keyword = if let Some(keyword) = raw_entry.keyword {
             if raw_entry.url.is_some() || raw_entry.escape.unwrap_or(false) {
@@ -126,7 +139,7 @@ impl StoreEntry {
         };
 
         Ok(StoreEntry {
-            name: name,
+            name: name.to_string(),
             entry: entry,
             tags: tags,
             keyword: keyword,
@@ -264,6 +277,16 @@ pub struct Store {
 }
 
 impl Store {
+    pub fn build<'a, E: Iterator<Item = (String, toml::Value)>>(
+        serialized_entries: E,
+    ) -> Result<Store, Error> {
+        Ok(Store {
+            entries: serialized_entries
+                .map(|(k, v)| StoreEntry::from_value(k, v))
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+
     pub fn find_matches(&self, query: &str) -> Vec<&StoreEntry> {
         // get indicies of all entries with scores greater than zero
         let mut matches: Vec<_> = self
@@ -287,32 +310,20 @@ impl Store {
     }
 }
 
-pub fn load_store<P: AsRef<Path>>(path: P) -> Result<Store, Error> {
-    match fs::read_to_string(path) {
-        Ok(txt) => parse_store(&txt),
-        Err(err) => Err(Error::IOError(err)),
-    }
-}
-
-fn parse_store(text: &str) -> Result<Store, Error> {
-    let value: toml::Value = toml::from_str(text).map_err(|e| Error::ParseError(e))?;
-    let table = match value {
-        toml::Value::Table(t) => t,
-        _ => return Err(Error::CustomError("Toml is not a Table".to_string())),
-    };
-
-    Ok(Store {
-        entries: table
-            .into_iter()
-            .map(|(f, v)| StoreEntry::from_value(f, v))
-            .collect::<Result<Vec<_>, _>>()?,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile;
+
+    fn parse_store(text: &str) -> Result<Store, Error> {
+        let value: toml::Value = toml::from_str(text).unwrap();
+
+        if let toml::Value::Table(table) = value {
+            Store::build(table.into_iter())
+        } else {
+            panic!("Toml is not a Table")
+        }
+    }
 
     #[test]
     fn parse_empty_file() {
@@ -482,14 +493,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_error() {
-        let toml = r#"['asdf']
-		    tags = ["foo", 'bar', 'baz'"#;
-
-        assert!(matches!(parse_store(&toml), Err(Error::ParseError(_))));
-    }
-
-    #[test]
     fn system_entry() {
         let dir = tempfile::tempdir().unwrap();
         let dirname = dir.path().to_string_lossy();
@@ -540,12 +543,6 @@ mod tests {
 
         assert!(store.entries.len() == 1);
         assert_eq!(&expected_entry, entry);
-    }
-
-    #[test]
-    fn nonexistent_path() {
-        let result = load_store("nonexistentfile.toml");
-        assert!(matches!(result, Err(Error::IOError(_))));
     }
 
     #[test]
@@ -622,7 +619,38 @@ mod tests {
     #[test]
     #[ignore]
     fn toml_test() {
-        let text = r#"[foo.txt]"#;
+        let text = r#"bare_key = 1"#;
         panic!("{:?}", toml::from_str::<toml::Value>(text))
+    }
+
+    #[test]
+    fn bare_keys_not_allowed() {
+        let toml = r#"bare_key = 42"#;
+        let text = parse_store(toml);
+        assert!(matches!(text, Err(Error::BareKeyError(_))), "{:?}", text)
+    }
+
+    #[test]
+    fn parse_error() {
+        let tests = [
+            r#"['asdf']
+               location = 1"#,
+            r#"['asdf']
+               url = 1"#,
+            r#"['asdf']
+               system = 1"#,
+            r#"['asdf']
+               keyword = 1"#,
+            r#"['asdf']
+               escape = 1"#,
+            r#"['asdf']
+               tags = 1"#,
+            r#"['asdf']
+               tags = 'foo'"#,
+        ];
+
+        for toml in tests {
+            assert!(matches!(parse_store(&toml), Err(Error::ParseError(_))));
+        }
     }
 }
