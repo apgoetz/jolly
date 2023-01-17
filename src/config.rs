@@ -76,12 +76,14 @@ fn load_txt(txt: &str) -> Result<Config, Error> {
 
     // if we have a settings entry use it, otherwise deserialize something empty and rely on serde defaults
 
-    let settings = match parsed_config.remove("config") {
+    let mut settings = match parsed_config.remove("config") {
         Some(config) => {
             Settings::deserialize(config).map_err(|e| Error::ParseError(e.to_string()))?
         }
         None => Settings::default(),
     };
+
+    settings.ui.propagate();
 
     // get config as table of top level entries
     let store = Store::build(parsed_config.into_iter()).map_err(Error::StoreError);
@@ -107,8 +109,8 @@ mod tests {
         let config = load_txt(toml).unwrap();
 
         assert_eq!(
-            config.settings.ui.max_results,
-            Settings::default().ui.max_results
+            config.settings.ui.search.padding,
+            Settings::default().ui.search.padding
         );
         assert_ne!(config.settings.ui.width, Settings::default().ui.width);
     }
@@ -139,5 +141,33 @@ mod tests {
     fn nonexistent_path() {
         let result = load_path("nonexistentfile.toml");
         assert!(matches!(result, Err(Error::IoError(_))));
+    }
+
+    #[test]
+    fn child_settings_override() {
+        let toml = r#"[config.ui.results]
+		    padding = 42"#;
+
+        let settings = load_txt(toml).unwrap().settings;
+
+        assert_eq!(settings.ui.common, Default::default());
+
+        assert_eq!(settings.ui.entry, Default::default());
+
+        assert_ne!(settings.ui.results, Default::default());
+    }
+
+    #[test]
+    fn parent_settings_inherit() {
+        let toml = r#"[config.ui]
+		    text_size = 42"#;
+
+        let settings = load_txt(toml).unwrap().settings;
+
+        assert_ne!(settings.ui.common, Default::default());
+
+        assert_ne!(settings.ui.entry, Default::default());
+
+        assert_ne!(settings.ui.results, Default::default());
     }
 }

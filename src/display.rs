@@ -1,23 +1,57 @@
 // contains logic for displaying entries
 use crate::platform;
 use crate::store;
+use crate::ui;
 use iced_native::{event, keyboard, layout, mouse, renderer, text, widget, Shell};
 
 type Message = store::StoreEntry;
+
+// theme settings for each shown entry result
+#[derive(serde::Deserialize, Debug, Clone, PartialEq)]
+#[serde(default)]
+pub struct EntrySettings {
+    text_color: ui::Color,
+    selected_color: ui::Color,
+    selected_text_color: ui::Color,
+    #[serde(flatten)]
+    common: ui::InheritedSettings,
+}
+
+impl EntrySettings {
+    pub fn propagate(&mut self, parent: &ui::InheritedSettings) {
+        self.common.propagate(parent);
+    }
+    pub fn height(&self) -> u16 {
+        self.common.text_size() + 10 // fixme: get rid of ugly hacked numbers
+    }
+}
+
+impl Default for EntrySettings {
+    fn default() -> Self {
+        Self {
+            text_color: ui::Color(csscolorparser::Color::from_rgba8(0, 0, 0, 255)),
+            selected_color: platform::accent_color(),
+            selected_text_color: ui::Color(csscolorparser::Color::from_rgba8(255, 255, 255, 255)),
+            common: ui::InheritedSettings::default(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Entry<'a> {
     selected: bool,
     entry: &'a store::StoreEntry,
     title: String,
+    settings: EntrySettings,
 }
 
 impl<'a> Entry<'a> {
-    pub fn new(searchtext: &str, entry: &'a store::StoreEntry) -> Self {
+    pub fn new(searchtext: &str, entry: &'a store::StoreEntry, settings: &EntrySettings) -> Self {
         Entry {
             selected: false,
             entry: entry,
             title: entry.format_name(searchtext),
+            settings: settings.clone(),
         }
     }
 
@@ -41,9 +75,15 @@ where
 
     fn layout(&self, _renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
         // add a new height restriction of how big this entry is
-        let limits = limits.height(iced_native::Length::Units(40));
+        let limits = limits
+            .height(iced_native::Length::Units(
+                self.settings.common.text_size() + 10,
+            ))
+            .width(iced_native::Length::Fill);
+
         //turn limits into size?
         let size = limits.resolve(iced_native::Size::ZERO);
+
         // turn size into node?
         let node = layout::Node::new(size);
         node
@@ -61,13 +101,14 @@ where
     ) {
         // viewport is rectangle covering entire UI that is being rendered
         // layout is the shape that we have  been budgeted
-        let mut color = iced_native::Color::BLACK;
+        let mut color = self.settings.text_color.clone();
         let bounds = layout
             .bounds()
             .intersection(viewport)
             .unwrap_or(layout.bounds());
 
         if self.selected {
+            let selected_color: iced::Color = self.settings.selected_color.clone().into();
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: bounds,
@@ -75,9 +116,9 @@ where
                     border_width: 1.0,
                     border_color: iced_native::Color::TRANSPARENT,
                 },
-                platform::accent_color(),
+                selected_color,
             );
-            color = iced_native::Color::WHITE;
+            color = self.settings.selected_text_color.clone().into();
         }
 
         renderer.fill_text(text::Text {
@@ -88,7 +129,7 @@ where
                 y: bounds.center_y(),
                 ..bounds
             },
-            color: color,
+            color: color.into(),
             font: Default::default(),
             horizontal_alignment: iced_native::alignment::Horizontal::Left,
             vertical_alignment: iced_native::alignment::Vertical::Center,
