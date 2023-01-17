@@ -21,6 +21,7 @@ dirs = "4"
 opener = "0.5.0"
 urlencoding = "2.1.0"
 lazy_static = "1"
+csscolorparser = { version = "0.6.2", features = ["serde"] }
 
 [dev-dependencies] 
 tempfile = "3"

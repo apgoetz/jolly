@@ -1,3 +1,4 @@
+use crate::ui;
 use opener;
 use std::error;
 use std::ffi::OsStr;
@@ -28,21 +29,22 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {}
 
-const DEFAULT_ACCENT_COLOR: iced_native::Color = iced_native::Color {
+const DEFAULT_ACCENT_COLOR: ui::Color = ui::Color(csscolorparser::Color {
     r: 92.0 / 255.0,
     g: 144.0 / 255.0,
     b: 226.0 / 255.0,
     a: 1.0,
-};
+});
 
 // based on subprocess crate
 #[cfg(unix)]
 mod os {
+    use crate::ui;
     use std::ffi::OsStr;
     use std::process::Command;
 
     const SHELL: [&str; 2] = ["sh", "-c"];
-    pub const ACCENT_COLOR: &'static iced_native::Color = &super::DEFAULT_ACCENT_COLOR;
+    pub const ACCENT_COLOR: &'static ui::Color = &super::DEFAULT_ACCENT_COLOR;
 
     // run a subshell and interpret results
     pub fn system(cmdstr: impl AsRef<OsStr>) -> std::io::Result<std::process::Child> {
@@ -52,6 +54,7 @@ mod os {
 
 #[cfg(windows)]
 mod os {
+    use crate::ui;
     use std::ffi::OsStr;
     use std::os::windows::process::CommandExt;
     use std::process::Command;
@@ -61,14 +64,16 @@ mod os {
 
     // try and get the windows accent color. This wont work for
     // windows < 10
-    fn try_get_color() -> Option<iced_native::Color> {
+    fn try_get_color() -> Option<ui::Color> {
         let settings = UISettings::new().ok()?;
         let color = settings.GetColorValue(UIColorType::Accent).ok()?;
-        Some(iced_native::Color::from_rgb8(color.R, color.G, color.B))
+        Some(ui::Color(csscolorparser::Color::from_rgba8(
+            color.R, color.G, color.B, 255,
+        )))
     }
 
     lazy_static::lazy_static! {
-    pub static ref ACCENT_COLOR : iced_native::Color = {
+    pub static ref ACCENT_COLOR : ui::Color = {
         // if we cannot get the windows accent color, default to the unix one
         if let Some(color) = try_get_color() {
         color
@@ -94,8 +99,8 @@ pub fn system(cmdstr: impl AsRef<OsStr>) -> Result<(), Error> {
     os::system(cmdstr).map(|_| ()).map_err(Error::IoError)
 }
 
-pub fn accent_color() -> iced_native::Color {
-    *os::ACCENT_COLOR
+pub fn accent_color() -> ui::Color {
+    os::ACCENT_COLOR.clone()
 }
 
 pub fn open_file<P: AsRef<Path>>(path: P) -> Result<(), Error> {

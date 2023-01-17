@@ -66,8 +66,8 @@ impl Jolly {
         self.searchtext = String::new();
         self.search_results = Default::default();
         Command::single(command::Action::Window(window::Action::Resize {
-            width: self.settings.ui.width,
-            height: self.settings.ui.starting_height(),
+            width: self.settings.ui.width as _,
+            height: self.settings.ui.search.starting_height(),
         }))
     }
 
@@ -141,17 +141,12 @@ impl Application for Jolly {
                 if let Some(store) = self.store_state.store() {
                     let matches = store.find_matches(&self.searchtext).into_iter();
                     // unwrap will never panic since UI_MAX_RESULTS is const
-                    let max_num = self
-                        .settings
-                        .ui
-                        .max_results
-                        .min(matches.len().try_into().unwrap());
-                    self.search_results = search_results::SearchResults::new(
-                        matches.take(max_num.try_into().unwrap()),
-                    );
+                    self.search_results =
+                        search_results::SearchResults::new(matches, &self.settings.ui);
                     Command::single(command::Action::Window(window::Action::Resize {
-                        width: self.settings.ui.width,
-                        height: (1 + max_num) * self.settings.ui.starting_height(),
+                        width: self.settings.ui.width as _,
+                        height: self.settings.ui.search.starting_height()
+                            + self.search_results.height(),
                     }))
                 } else {
                     Command::none()
@@ -198,14 +193,18 @@ impl Application for Jolly {
         let mut column = widget::column::Column::new();
         column = column.push(
             TextInput::new(default_txt, &self.searchtext, Message::SearchTextChanged)
+                .size(self.settings.ui.search.common.text_size())
                 .id(TEXT_INPUT_ID.clone())
-                .padding(self.settings.ui.default_padding),
+                .padding(self.settings.ui.search.padding),
         );
         column = column.push(
             self.search_results
                 .view(&self.searchtext, Message::EntrySelected),
         );
         column.into()
+    }
+    fn theme(&self) -> iced::Theme {
+        self.settings.ui.theme.into()
     }
 }
 
@@ -214,11 +213,11 @@ pub fn main() -> Result<(), error::Error> {
     let mut settings = Settings::default();
     settings.window.size = (
         config.settings.ui.width,
-        config.settings.ui.starting_height(),
+        config.settings.ui.search.starting_height(),
     );
     settings.window.decorations = false;
     settings.window.visible = false;
-    settings.default_text_size = config.settings.ui.default_text_size;
+    settings.default_text_size = config.settings.ui.common.text_size();
     settings.flags = config;
     Jolly::run(settings).map_err(error::Error::IcedError)
 }
