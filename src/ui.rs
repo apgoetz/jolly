@@ -3,13 +3,12 @@
 
 use crate::{display, platform, search_results};
 use csscolorparser;
+use dark_light;
 use iced;
+use lazy_static::lazy_static;
 use serde;
-
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Copy)]
 pub enum Theme {
-    #[serde(alias = "auto")]
-    Auto,
     #[serde(alias = "light")]
     Light,
     #[serde(alias = "dark")]
@@ -18,9 +17,11 @@ pub enum Theme {
 
 impl From<Theme> for iced::Theme {
     fn from(t: Theme) -> iced::Theme {
+        // determine which theme to use.
+        // if your hmi is set to dark mode, use dark theme, if in auto
         match t {
             Theme::Dark => iced::Theme::Dark,
-            _ => iced::Theme::Light,
+            Theme::Light => iced::Theme::Light,
         }
     }
 }
@@ -73,9 +74,18 @@ impl UISettings {
 
 impl Default for UISettings {
     fn default() -> Self {
+        // store default theme in lazy static to avoid generating it more than once
+        lazy_static! {
+            static ref DEFAULT_THEME: Theme = if dark_light::detect() == dark_light::Mode::Dark {
+                Theme::Dark
+            } else {
+                Theme::Light
+            };
+        }
+
         Self {
             width: 800,
-            theme: Theme::Auto,
+            theme: *DEFAULT_THEME,
             common: InheritedSettings::default(),
             search: SearchSettings::default(),
             results: Default::default(),
