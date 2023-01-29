@@ -92,14 +92,14 @@ impl SearchResults {
     where
         F: 'static + Fn(store::StoreEntry) -> Message,
         Renderer: 'a + text::Renderer,
-        Renderer::Theme: iced::widget::pick_list::StyleSheet,
+        Renderer::Theme: iced::overlay::menu::StyleSheet,
         Message: 'static,
     {
         let mut column = widget::column::Column::new().padding(self.settings.results.padding);
         for (i, e) in self.entries.iter().enumerate() {
             // unwrap will never panic since UI_MAX_RESULTS is const
             let entry: iced_native::Element<_, _> = {
-                let e = display::Entry::new(searchtext, e, &self.settings.entry);
+                let e = display::Entry::new(searchtext, e, &self.settings);
                 if i == self.selected {
                     e.selected().into()
                 } else {
