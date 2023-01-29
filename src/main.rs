@@ -204,12 +204,16 @@ impl Application for Jolly {
         column.into()
     }
     fn theme(&self) -> iced::Theme {
-        self.settings.ui.theme.into()
+        let theme: iced::Theme = self.settings.ui.theme.into();
+        let mut palette: iced::theme::Palette = theme.palette();
+        palette.primary = self.settings.ui.selected_color.clone().into();
+        iced::Theme::custom(palette)
     }
 }
 
 pub fn main() -> Result<(), error::Error> {
     let config = config::Config::load();
+
     let mut settings = Settings::default();
     settings.window.size = (
         config.settings.ui.width,
@@ -219,5 +223,6 @@ pub fn main() -> Result<(), error::Error> {
     settings.window.visible = false;
     settings.default_text_size = config.settings.ui.common.text_size();
     settings.flags = config;
+
     Jolly::run(settings).map_err(error::Error::IcedError)
 }

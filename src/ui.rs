@@ -1,7 +1,7 @@
 // eventually the jolly main window logic will move here out of main
 // but for now it will just hold settings.
 
-use crate::{display, search_results};
+use crate::{display, platform, search_results};
 use csscolorparser;
 use iced;
 use serde;
@@ -31,6 +31,8 @@ pub struct UISettings {
     pub width: u32,
 
     pub theme: Theme,
+
+    pub selected_color: Color,
 
     #[serde(flatten)]
     pub common: InheritedSettings,
@@ -78,6 +80,7 @@ impl Default for UISettings {
             search: SearchSettings::default(),
             results: Default::default(),
             entry: Default::default(),
+            selected_color: platform::accent_color(),
         }
     }
 }

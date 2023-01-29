@@ -1,5 +1,4 @@
 // contains logic for displaying entries
-use crate::platform;
 use crate::store;
 use crate::ui;
 use iced_native::{event, keyboard, layout, mouse, renderer, text, widget, Shell};
@@ -10,7 +9,6 @@ type Message = store::StoreEntry;
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct EntrySettings {
-    selected_color: ui::Color,
     #[serde(flatten)]
     common: ui::InheritedSettings,
 }
@@ -27,7 +25,6 @@ impl EntrySettings {
 impl Default for EntrySettings {
     fn default() -> Self {
         Self {
-            selected_color: platform::accent_color(),
             common: ui::InheritedSettings::default(),
         }
     }
@@ -38,11 +35,11 @@ pub struct Entry<'a> {
     selected: bool,
     entry: &'a store::StoreEntry,
     title: String,
-    settings: EntrySettings,
+    settings: ui::UISettings,
 }
 
 impl<'a> Entry<'a> {
-    pub fn new(searchtext: &str, entry: &'a store::StoreEntry, settings: &EntrySettings) -> Self {
+    pub fn new(searchtext: &str, entry: &'a store::StoreEntry, settings: &ui::UISettings) -> Self {
         Entry {
             selected: false,
             entry: entry,
@@ -60,7 +57,7 @@ impl<'a> Entry<'a> {
 impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 where
     Renderer: text::Renderer,
-    Renderer::Theme: iced::widget::pick_list::StyleSheet,
+    Renderer::Theme: iced::overlay::menu::StyleSheet,
 {
     fn width(&self) -> iced_native::Length {
         iced_native::Length::Fill
@@ -96,7 +93,7 @@ where
         _cursor_position: iced_native::Point,
         viewport: &iced_native::Rectangle,
     ) {
-        use iced::widget::pick_list::StyleSheet;
+        use iced::overlay::menu::StyleSheet;
         // viewport is rectangle covering entire UI that is being rendered
         // layout is the shape that we have  been budgeted
         let bounds = layout
@@ -104,15 +101,15 @@ where
             .intersection(viewport)
             .unwrap_or(layout.bounds());
 
-        let style = if self.selected {
-            theme.hovered(&Default::default())
+        let appearance = theme.appearance(&Default::default());
+
+        let text_color = if self.selected {
+            appearance.selected_text_color
         } else {
-            theme.active(&Default::default())
+            appearance.text_color
         };
 
-        
         if self.selected {
-            let selected_color: iced::Color = self.settings.selected_color.clone().into();
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: bounds,
@@ -120,7 +117,7 @@ where
                     border_width: 1.0,
                     border_color: iced_native::Color::TRANSPARENT,
                 },
-                selected_color,
+                appearance.selected_background,
             );
         }
 
@@ -132,7 +129,7 @@ where
                 y: bounds.center_y(),
                 ..bounds
             },
-            color: style.text_color,
+            color: text_color,
             font: Default::default(),
             horizontal_alignment: iced_native::alignment::Horizontal::Left,
             vertical_alignment: iced_native::alignment::Vertical::Center,
@@ -192,7 +189,7 @@ where
 impl<'a, Renderer> From<Entry<'a>> for iced_native::Element<'a, Message, Renderer>
 where
     Renderer: 'a + text::Renderer,
-    Renderer::Theme: iced::widget::pick_list::StyleSheet,
+    Renderer::Theme: iced::overlay::menu::StyleSheet,
 {
     fn from(entry: Entry<'a>) -> iced_native::Element<'a, Message, Renderer> {
         iced_native::Element::new(entry)
