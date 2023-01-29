@@ -10,9 +10,7 @@ type Message = store::StoreEntry;
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct EntrySettings {
-    text_color: ui::Color,
     selected_color: ui::Color,
-    selected_text_color: ui::Color,
     #[serde(flatten)]
     common: ui::InheritedSettings,
 }
@@ -29,9 +27,7 @@ impl EntrySettings {
 impl Default for EntrySettings {
     fn default() -> Self {
         Self {
-            text_color: ui::Color(csscolorparser::Color::from_rgba8(0, 0, 0, 255)),
             selected_color: platform::accent_color(),
-            selected_text_color: ui::Color(csscolorparser::Color::from_rgba8(255, 255, 255, 255)),
             common: ui::InheritedSettings::default(),
         }
     }
@@ -64,6 +60,7 @@ impl<'a> Entry<'a> {
 impl<'a, Renderer> widget::Widget<Message, Renderer> for Entry<'a>
 where
     Renderer: text::Renderer,
+    Renderer::Theme: iced::widget::pick_list::StyleSheet,
 {
     fn width(&self) -> iced_native::Length {
         iced_native::Length::Fill
@@ -93,20 +90,27 @@ where
         &self,
         _state: &widget::Tree,
         renderer: &mut Renderer,
-        _theme: &Renderer::Theme,
+        theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: layout::Layout<'_>,
         _cursor_position: iced_native::Point,
         viewport: &iced_native::Rectangle,
     ) {
+        use iced::widget::pick_list::StyleSheet;
         // viewport is rectangle covering entire UI that is being rendered
         // layout is the shape that we have  been budgeted
-        let mut color = self.settings.text_color.clone();
         let bounds = layout
             .bounds()
             .intersection(viewport)
             .unwrap_or(layout.bounds());
 
+        let style = if self.selected {
+            theme.hovered(&Default::default())
+        } else {
+            theme.active(&Default::default())
+        };
+
+        
         if self.selected {
             let selected_color: iced::Color = self.settings.selected_color.clone().into();
             renderer.fill_quad(
@@ -118,7 +122,6 @@ where
                 },
                 selected_color,
             );
-            color = self.settings.selected_text_color.clone().into();
         }
 
         renderer.fill_text(text::Text {
@@ -129,7 +132,7 @@ where
                 y: bounds.center_y(),
                 ..bounds
             },
-            color: color.into(),
+            color: style.text_color,
             font: Default::default(),
             horizontal_alignment: iced_native::alignment::Horizontal::Left,
             vertical_alignment: iced_native::alignment::Vertical::Center,
@@ -189,6 +192,7 @@ where
 impl<'a, Renderer> From<Entry<'a>> for iced_native::Element<'a, Message, Renderer>
 where
     Renderer: 'a + text::Renderer,
+    Renderer::Theme: iced::widget::pick_list::StyleSheet,
 {
     fn from(entry: Entry<'a>) -> iced_native::Element<'a, Message, Renderer> {
         iced_native::Element::new(entry)

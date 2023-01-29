@@ -92,6 +92,7 @@ impl SearchResults {
     where
         F: 'static + Fn(store::StoreEntry) -> Message,
         Renderer: 'a + text::Renderer,
+        Renderer::Theme: iced::widget::pick_list::StyleSheet,
         Message: 'static,
     {
         let mut column = widget::column::Column::new().padding(self.settings.results.padding);
