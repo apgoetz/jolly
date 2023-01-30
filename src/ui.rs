@@ -123,16 +123,29 @@ impl Default for SearchSettings {
     }
 }
 
-// structure of jolly window:
-// window
-// column
-//   textinput
-//   searchresults
-//     column
-//       entries
-
-#[derive(serde::Deserialize, Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Color(pub csscolorparser::Color);
+
+// use a custom deserializer to provide more info that we dont understand a color
+impl<'de> serde::Deserialize<'de> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::value::StringDeserializer;
+        use serde::de::Error;
+
+        // deserialize as string first so error message can reference the text
+        let text = String::deserialize(deserializer)?;
+        let error = D::Error::custom(format!("Cannot parse color `{}`", &text));
+
+        let string_deserializer: StringDeserializer<D::Error> = StringDeserializer::new(text);
+
+        csscolorparser::Color::deserialize(string_deserializer)
+            .map(Self)
+            .map_err(|_: _| error)
+    }
+}
 
 impl From<Color> for iced::Color {
     fn from(value: Color) -> Self {
