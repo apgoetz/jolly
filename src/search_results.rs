@@ -4,35 +4,7 @@ use crate::display;
 use crate::store;
 use crate::ui;
 
-// settings for the results display window
-#[derive(serde::Deserialize, Debug, Clone, PartialEq)]
-#[serde(default)]
-pub struct ResultsSettings {
-    max_results: usize,
-    padding: u16,
-    #[serde(flatten)]
-    common: ui::InheritedSettings,
-}
-
-impl Default for ResultsSettings {
-    fn default() -> Self {
-        Self {
-            max_results: 5,
-            padding: 2,
-            common: ui::InheritedSettings::default(),
-        }
-    }
-}
-
-impl ResultsSettings {
-    pub fn propagate(&mut self, parent: &ui::InheritedSettings) {
-        self.common.propagate(parent);
-    }
-
-    pub fn padding(&self) -> u16 {
-        self.padding
-    }
-}
+const PADDING: u16 = 2;
 
 #[derive(Default)]
 pub struct SearchResults {
@@ -47,17 +19,14 @@ impl SearchResults {
         settings: &ui::UISettings,
     ) -> Self {
         SearchResults {
-            entries: results
-                .cloned()
-                .take(settings.results.max_results)
-                .collect(),
+            entries: results.cloned().take(settings.max_results).collect(),
             selected: 0,
             settings: settings.clone(),
         }
     }
 
     pub fn height(&self) -> u32 {
-        let padding = self.settings.results.padding() as usize;
+        let padding = PADDING as usize;
         let height = self.settings.entry.height() as usize;
         (self.entries.len() * height + padding * 2) as u32
     }
@@ -95,7 +64,7 @@ impl SearchResults {
         Renderer::Theme: iced::overlay::menu::StyleSheet,
         Message: 'static,
     {
-        let mut column = widget::column::Column::new().padding(self.settings.results.padding);
+        let mut column = widget::column::Column::new().padding(PADDING);
         for (i, e) in self.entries.iter().enumerate() {
             // unwrap will never panic since UI_MAX_RESULTS is const
             let entry: iced_native::Element<_, _> = {

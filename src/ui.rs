@@ -1,7 +1,7 @@
 // eventually the jolly main window logic will move here out of main
 // but for now it will just hold settings.
 
-use crate::{display, platform, search_results};
+use crate::{display, platform};
 use csscolorparser;
 use dark_light;
 use iced;
@@ -39,8 +39,8 @@ pub struct UISettings {
     pub common: InheritedSettings,
 
     pub search: SearchSettings,
-    pub results: search_results::ResultsSettings,
     pub entry: display::EntrySettings,
+    pub max_results: usize,
 }
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Default)]
@@ -68,7 +68,6 @@ impl UISettings {
     pub fn propagate(&mut self) {
         self.entry.propagate(&self.common);
         self.search.propagate(&self.common);
-        self.results.propagate(&self.common);
     }
 }
 
@@ -88,9 +87,9 @@ impl Default for UISettings {
             theme: *DEFAULT_THEME,
             common: InheritedSettings::default(),
             search: SearchSettings::default(),
-            results: Default::default(),
             entry: Default::default(),
             accent_color: platform::accent_color(),
+            max_results: 5,
         }
     }
 }

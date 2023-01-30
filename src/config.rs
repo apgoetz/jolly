@@ -145,8 +145,8 @@ mod tests {
 
     #[test]
     fn child_settings_override() {
-        let toml = r#"[config.ui.results]
-		    padding = 42"#;
+        let toml = r#"[config.ui.search]
+		    text_size = 42"#;
 
         let settings = load_txt(toml).unwrap().settings;
 
@@ -154,7 +154,7 @@ mod tests {
 
         assert_eq!(settings.ui.entry, Default::default());
 
-        assert_ne!(settings.ui.results, Default::default());
+        assert_ne!(settings.ui.search, Default::default());
     }
 
     #[test]
@@ -168,6 +168,6 @@ mod tests {
 
         assert_ne!(settings.ui.entry, Default::default());
 
-        assert_ne!(settings.ui.results, Default::default());
+        assert_ne!(settings.ui.search, Default::default());
     }
 }
