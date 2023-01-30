@@ -206,7 +206,7 @@ impl Application for Jolly {
     fn theme(&self) -> iced::Theme {
         let theme: iced::Theme = self.settings.ui.theme.into();
         let mut palette: iced::theme::Palette = theme.palette();
-        palette.primary = self.settings.ui.selected_color.clone().into();
+        palette.primary = self.settings.ui.accent_color.clone().into();
         iced::Theme::custom(palette)
     }
 }

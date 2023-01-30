@@ -33,7 +33,7 @@ pub struct UISettings {
 
     pub theme: Theme,
 
-    pub selected_color: Color,
+    pub accent_color: Color,
 
     #[serde(flatten)]
     pub common: InheritedSettings,
@@ -90,7 +90,7 @@ impl Default for UISettings {
             search: SearchSettings::default(),
             results: Default::default(),
             entry: Default::default(),
-            selected_color: platform::accent_color(),
+            accent_color: platform::accent_color(),
         }
     }
 }
