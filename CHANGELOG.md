@@ -5,6 +5,7 @@
 ### Added
 
 - MSRV statement. Jolly will track latest stable rust [#6](https://github.com/apgoetz/jolly/issues/6)
+- Settings Support. Jolly now has ability to customize settings and basic theme [#10](https://github.com/apgoetz/jolly/issues/10)
 
 ### Fixed
 
