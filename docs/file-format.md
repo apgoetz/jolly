@@ -61,6 +61,10 @@ in single quotes in your toml file. This is because if your entry name
 contains a dot (.) the TOML parser will interpret the entry as a
 hierarchical table, which will mess up Jolly's parsing*
 
+**Important Note** The Settings of Jolly are specified in a special
+table called `config` and are described in [config.md](config.md)
+
+
 The *entry target* in this case would be of type `location`, and points to a local file called `jolly.toml`. 
 
 ## <a name="tags"></a> Tags
