@@ -1,39 +1,19 @@
 // eventually the jolly main window logic will move here out of main
 // but for now it will just hold settings.
 
-use crate::{display, platform};
+use crate::{display, theme};
 use csscolorparser;
-use dark_light;
 use iced;
-use lazy_static::lazy_static;
 use serde;
-#[derive(serde::Deserialize, Debug, Clone, PartialEq, Copy)]
-pub enum Theme {
-    #[serde(alias = "light")]
-    Light,
-    #[serde(alias = "dark")]
-    Dark,
-}
-
-impl From<Theme> for iced::Theme {
-    fn from(t: Theme) -> iced::Theme {
-        // determine which theme to use.
-        // if your hmi is set to dark mode, use dark theme, if in auto
-        match t {
-            Theme::Dark => iced::Theme::Dark,
-            Theme::Light => iced::Theme::Light,
-        }
-    }
-}
+use serde::de::value::{StrDeserializer, StringDeserializer};
+use serde::Deserialize;
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
 pub struct UISettings {
     pub width: u32,
 
-    pub theme: Theme,
-
-    pub accent_color: Color,
+    pub theme: theme::Theme,
 
     #[serde(flatten)]
     pub common: InheritedSettings,
@@ -65,6 +45,7 @@ impl InheritedSettings {
 }
 
 impl UISettings {
+    // initial "fixing" of parameters
     pub fn propagate(&mut self) {
         self.entry.propagate(&self.common);
         self.search.propagate(&self.common);
@@ -73,22 +54,12 @@ impl UISettings {
 
 impl Default for UISettings {
     fn default() -> Self {
-        // store default theme in lazy static to avoid generating it more than once
-        lazy_static! {
-            static ref DEFAULT_THEME: Theme = if dark_light::detect() == dark_light::Mode::Dark {
-                Theme::Dark
-            } else {
-                Theme::Light
-            };
-        }
-
         Self {
             width: 800,
-            theme: *DEFAULT_THEME,
+            theme: Default::default(),
             common: InheritedSettings::default(),
             search: SearchSettings::default(),
             entry: Default::default(),
-            accent_color: platform::accent_color(),
             max_results: 5,
         }
     }
@@ -125,13 +96,19 @@ impl Default for SearchSettings {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Color(pub csscolorparser::Color);
 
+impl Color {
+    // panics if input is malformed. so best used for compile time colors
+    pub fn from_str(s: &str) -> Self {
+        Color::deserialize(StrDeserializer::<serde::de::value::Error>::new(s)).unwrap()
+    }
+}
+
 // use a custom deserializer to provide more info that we dont understand a color
 impl<'de> serde::Deserialize<'de> for Color {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::value::StringDeserializer;
         use serde::de::Error;
 
         // deserialize as string first so error message can reference the text
