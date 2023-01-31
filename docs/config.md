@@ -41,41 +41,20 @@ Below is more detail about the available settings:
 | field name     | data type      | description                   |
 |----------------|----------------|-------------------------------|
 | `width`        | *integer*      | width of Jolly Window         |
-| `theme`        | *string*       | which `iced` theme to use     |
-| `accent_color` | *color string* | color to use as main accent   |
 | `search`       | *table*        | customize search field        |
 | `results`      | *table*        | customize results display     |
 | `entry`        | *table*        | customize result entries      |
 | `text_size`    | *integer*      | font size for UI.             |
 | `max_results`  | *integer*      | ma number of results to show. |
+| `theme`        | *string*       | which `iced` theme to use     |
+| `accent_color` | *color string* | color to use as main accent   |
+
 
 ## `width`        &mdash; *integer*
 
 Determines the width of the Jolly window. Defined in virtual units as used by `iced`
 
 
-## `theme`        &mdash; *string*
-
-Determine general theme of Jolly UI. Currently can choose between "dark" and "light".
-
-If left unspecified, Jolly will try to identify if the current OS
-color scheme is "light" or "dark" and will match the selected color.
-
-Please note however that the primary color of the iced Palette will be replaced with `accent_color`.
-
-## `accent_color` &mdash; *color string*
-
-Specify the accent color to use for the Jolly interface. Since the
-Jolly interface is so simple, we override the iced primary color to customize the display.
-
-This parameter is a string, but it is interpreted as an HTML color
-using [csscolorparser](https://crates.io/crates/csscolorparser). This
-means that [HTML named
-colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
-RGB values can be used to specify the accent color.
-
-If the `accent_color` is left unspecified, then Jolly will attempt to
-load the accent color specified for the OS and use that.
 
 ## `search`       &mdash; *table*
 
@@ -102,6 +81,66 @@ Default text size is 20.
 Specify the maximum number of results to show in the Jolly search results window.
 
 Defaults to 5.
+
+
+# [config.ui.theme]
+
+| field name         | data type      | description                 |
+|--------------------|----------------|-----------------------------|
+| `base`             | *string*       | base color theme to use     |
+| `accent_color`     | *color string* | color to use as main accent |
+| `background_color` | *color string* | color to use for background |
+| `text_color`       | *color string* | color to use for text       |
+
+
+
+## `theme`        &mdash; *'light'|'dark'*
+
+Determine general theme of Jolly UI. Currently can choose between "light" and "dark".
+
+If left unspecified, Jolly will try to identify if the current OS
+color scheme is "light" or "dark" and will match the selected color.
+
+The individual colors of the theme can be separately overridden below. 
+
+## `accent_color` &mdash; *color string*
+
+Specify the accent color to use for the Jolly interface. 
+
+This parameter is a string, but it is interpreted as an HTML color
+using [csscolorparser](https://crates.io/crates/csscolorparser). This
+means that [HTML named
+colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
+RGB values can be used to specify the accent color.
+
+If the `accent_color` is left unspecified, then Jolly will attempt to
+load the accent color specified for the OS and use that.
+
+## `background_color` &mdash; *color string*
+
+Specify the background color to use for the Jolly interface. 
+
+This parameter is a string, but it is interpreted as an HTML color
+using [csscolorparser](https://crates.io/crates/csscolorparser). This
+means that [HTML named
+colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
+RGB values can be used to specify the accent color.
+
+If the `background_color` is left unspecified, then Jolly will use the
+color specified by the `base` theme. 
+
+## `text_color` &mdash; *color string*
+
+Specify the text color to use for the Jolly interface. 
+
+This parameter is a string, but it is interpreted as an HTML color
+using [csscolorparser](https://crates.io/crates/csscolorparser). This
+means that [HTML named
+colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
+RGB values can be used to specify the accent color.
+
+If the `text_color` is left unspecified, then Jolly will use the
+color specified by the `base` theme. 
 
 # [config.ui.search]
 

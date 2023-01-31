@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use iced::widget::TextInput;
-use iced::{executor, Application, Command, Element, Settings, Theme};
+use iced::{executor, Application, Command, Element, Renderer, Settings};
 use iced_native::widget::text_input;
 use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
 use lazy_static;
@@ -12,6 +12,7 @@ mod platform;
 mod search_results;
 mod settings;
 mod store;
+mod theme;
 mod ui;
 
 lazy_static::lazy_static! {
@@ -102,7 +103,7 @@ impl Application for Jolly {
     type Message = Message;
     type Executor = executor::Default;
     type Flags = config::Config;
-    type Theme = Theme;
+    type Theme = theme::Theme;
 
     fn new(config: Self::Flags) -> (Self, Command<Self::Message>) {
         let mut jolly = Self::default();
@@ -182,7 +183,7 @@ impl Application for Jolly {
         subscription::events().map(Message::ExternalEvent)
     }
 
-    fn view(&self) -> Element<Self::Message> {
+    fn view(&self) -> Element<'_, Message, Renderer<Self::Theme>> {
         use StoreLoadedState::*;
         let default_txt = match &self.store_state {
             Pending => "Loading Bookmarks... ",
@@ -203,11 +204,8 @@ impl Application for Jolly {
         );
         column.into()
     }
-    fn theme(&self) -> iced::Theme {
-        let theme: iced::Theme = self.settings.ui.theme.into();
-        let mut palette: iced::theme::Palette = theme.palette();
-        palette.primary = self.settings.ui.accent_color.clone().into();
-        iced::Theme::custom(palette)
+    fn theme(&self) -> Self::Theme {
+        self.settings.ui.theme.clone()
     }
 }
 
