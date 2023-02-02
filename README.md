@@ -17,6 +17,22 @@ Alternatively, for rust users, Jolly can be installed via cargo:
 cargo install jolly
 ```
 
+## NetBSD
+
+On NetBSD, a pre-compiled binary is available from the official repositories.
+To install Jolly, simply run:
+
+```bash
+pkgin install jolly
+```
+
+Or, if you prefer to build it from source:
+
+```bash
+cd /usr/pkgsrc/x11/jolly
+make install
+```
+
 **Regarding Minimum Supported Rust Version**: Jolly
 uses [iced](https://github.com/iced-rs/iced) for its GUI implementation, which
 is a fast moving project that generally only targets the latest stable
