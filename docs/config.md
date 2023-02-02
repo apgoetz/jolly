@@ -46,8 +46,7 @@ Below is more detail about the available settings:
 | `entry`        | *table*        | customize result entries      |
 | `text_size`    | *integer*      | font size for UI.             |
 | `max_results`  | *integer*      | ma number of results to show. |
-| `theme`        | *string*       | which `iced` theme to use     |
-| `accent_color` | *color string* | color to use as main accent   |
+
 
 
 ## `width`        &mdash; *integer*
