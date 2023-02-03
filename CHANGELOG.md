@@ -7,6 +7,7 @@
 - MSRV statement. Jolly will track latest stable rust [#6](https://github.com/apgoetz/jolly/issues/6)
 - Settings Support. Jolly now has ability to customize settings [#10](https://github.com/apgoetz/jolly/issues/10)
 - Theme Support. Jolly now has ability to specify the colors of its theme [#11](https://github.com/apgoetz/jolly/issues/11)
+- Packaging for NetBSD. via [#12](https://github.com/apgoetz/jolly/issues/12)
 
 ### Fixed
 
