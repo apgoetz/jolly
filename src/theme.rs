@@ -42,6 +42,7 @@ pub struct Theme {
     pub background_color: ui::Color,
     pub text_color: ui::Color,
     pub accent_color: ui::Color,
+    pub selected_text_color: ui::Color,
 }
 
 impl Theme {
@@ -98,6 +99,8 @@ impl<'de> Visitor<'de> for DefaultTheme {
             TextColor,
             #[serde(rename = "accent_color")]
             AccentColor,
+            #[serde(rename = "selected_text_color")]
+            SelectedTextColor,
             #[serde(other)]
             Other,
         }
@@ -105,37 +108,39 @@ impl<'de> Visitor<'de> for DefaultTheme {
         let mut theme: Self::Value = self.into();
         let mut background_visited = false;
         let mut text_visited = false;
+        let mut selected_text_visited = false;
         let mut accent_visited = false;
-        loop {
-            let key = map.next_key();
-
-            if let Some(key) = key? {
-                match key {
-                    Field::BackgroundColor => {
-                        if background_visited {
-                            return Err(de::Error::duplicate_field("background_color"));
-                        }
-                        background_visited = true;
-                        theme.background_color = map.next_value()?;
+        while let Some(key) = map.next_key()? {
+            match key {
+                Field::BackgroundColor => {
+                    if background_visited {
+                        return Err(de::Error::duplicate_field("background_color"));
                     }
-                    Field::TextColor => {
-                        if text_visited {
-                            return Err(de::Error::duplicate_field("text_color"));
-                        }
-                        text_visited = true;
-                        theme.text_color = map.next_value()?;
-                    }
-                    Field::AccentColor => {
-                        if accent_visited {
-                            return Err(de::Error::duplicate_field("accent_color"));
-                        }
-                        accent_visited = true;
-                        theme.accent_color = map.next_value()?;
-                    }
-                    Field::Other => {}
+                    background_visited = true;
+                    theme.background_color = map.next_value()?;
                 }
-            } else {
-                break;
+                Field::TextColor => {
+                    if text_visited {
+                        return Err(de::Error::duplicate_field("text_color"));
+                    }
+                    text_visited = true;
+                    theme.text_color = map.next_value()?;
+                }
+                Field::AccentColor => {
+                    if accent_visited {
+                        return Err(de::Error::duplicate_field("accent_color"));
+                    }
+                    accent_visited = true;
+                    theme.accent_color = map.next_value()?;
+                }
+                Field::SelectedTextColor => {
+                    if selected_text_visited {
+                        return Err(de::Error::duplicate_field("selected_text_color"));
+                    }
+                    selected_text_visited = true;
+                    theme.selected_text_color = map.next_value()?;
+                }
+                Field::Other => {}
             }
         }
         Ok(theme)
@@ -174,12 +179,14 @@ impl From<DefaultTheme> for Theme {
                 background_color: ui::Color::from_str("white"),
                 text_color: ui::Color::from_str("black"),
                 accent_color: platform::accent_color(),
+                selected_text_color: ui::Color::from_str("white"),
             },
 
             DefaultTheme::Dark => Theme {
                 background_color: ui::Color::from_str("#202225"),
                 text_color: ui::Color::from_str("B3B3B3"),
                 accent_color: platform::accent_color(),
+                selected_text_color: ui::Color::from_str("black"),
             },
         }
     }
@@ -195,12 +202,12 @@ impl menu::StyleSheet for Theme {
         let palette = self.extended_palette();
 
         menu::Appearance {
-            text_color: palette.background.weak.text,
+            text_color: palette.background.base.text,
             background: palette.background.weak.color.into(),
             border_width: 1.0,
             border_radius: 0.0,
             border_color: palette.background.strong.color,
-            selected_text_color: palette.primary.strong.text,
+            selected_text_color: self.selected_text_color.clone().into(),
             selected_background: palette.primary.base.color.into(),
         }
     }
@@ -292,14 +299,16 @@ mod tests {
 
         let custom = Theme {
             background_color: ui::Color::from_str("red"),
-            text_color: ui::Color::from_str("green"),
-            accent_color: ui::Color::from_str("blue"),
+            text_color: ui::Color::from_str("orange"),
+            accent_color: ui::Color::from_str("yellow"),
+            selected_text_color: ui::Color::from_str("green"),
         };
 
         let toml = r#"
 		      background_color = "red"
-		      text_color = "green"
-		      accent_color = "blue"
+		      text_color = "orange"
+		      accent_color = "yellow"
+		      selected_text_color = "green"
                    "#;
 
         assert_eq!(custom, toml::from_str(toml).unwrap());
