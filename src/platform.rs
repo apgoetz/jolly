@@ -30,9 +30,9 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 const DEFAULT_ACCENT_COLOR: ui::Color = ui::Color(csscolorparser::Color {
-    r: 92.0 / 255.0,
-    g: 144.0 / 255.0,
-    b: 226.0 / 255.0,
+    r: 0x5E as f64 / 255.0,
+    g: 0x7C as f64 / 255.0,
+    b: 0xE2 as f64 / 255.0,
     a: 1.0,
 });
 

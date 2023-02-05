@@ -21,7 +21,11 @@ Below is an example `config` section that could be in `jolly.toml`:
 
 [config.ui]
 width = 1000 # specify extra wide window
-accent_color = "darkblue"
+max_results = 7 # allow extra results
+
+[config.ui.theme]
+base = "dark"
+accent_color= "orange"
 
 [config.ui.search]
 text_size = 40 # make search window bigger
@@ -38,14 +42,15 @@ the Jolly window.
 Below is more detail about the available settings: 
 
 
-| field name     | data type      | description                   |
-|----------------|----------------|-------------------------------|
-| `width`        | *integer*      | width of Jolly Window         |
-| `search`       | *table*        | customize search field        |
-| `results`      | *table*        | customize results display     |
-| `entry`        | *table*        | customize result entries      |
-| `text_size`    | *integer*      | font size for UI.             |
-| `max_results`  | *integer*      | ma number of results to show. |
+| field name    | data type | description                    |
+|---------------|-----------|--------------------------------|
+| `width`       | *integer* | width of Jolly Window          |
+| `theme`       | *table*   | customize the theme of Jolly   |
+| `search`      | *table*   | customize search field         |
+| `results`     | *table*   | customize results display      |
+| `entry`       | *table*   | customize result entries       |
+| `text_size`   | *integer* | font size for UI.              |
+| `max_results` | *integer* | max number of results to show. |
 
 
 
@@ -79,28 +84,58 @@ Default text size is 20.
 
 Specify the maximum number of results to show in the Jolly search results window.
 
-Defaults to 5.
+Defaults to 5 entries.
 
 
 # [config.ui.theme]
 
-| field name         | data type      | description                 |
-|--------------------|----------------|-----------------------------|
-| `base`             | *string*       | base color theme to use     |
-| `accent_color`     | *color string* | color to use as main accent |
-| `background_color` | *color string* | color to use for background |
-| `text_color`       | *color string* | color to use for text       |
+These parameters control the theme of Jolly. Right now, theming
+support is pretty basic and only supports setting the following parameters: 
 
 
+| field name            | data type      | description                    |
+|-----------------------|----------------|--------------------------------|
+| `base`                | *string*       | base theme to use        |
+| `accent_color`        | *color string* | color to use as main accent    |
+| `background_color`    | *color string* | color to use for background    |
+| `text_color`          | *color string* | color to use for text          |
+| `selected_text_color` | *color string* | color to use for selected_text |
 
-## `theme`        &mdash; *'light'|'dark'*
 
-Determine general theme of Jolly UI. Currently can choose between "light" and "dark".
+## `base`        &mdash; *'light'|'dark'*
 
-If left unspecified, Jolly will try to identify if the current OS
-color scheme is "light" or "dark" and will match the selected color.
+Determine what base theme to use for Jolly UI. Currently, the only
+options are 'dark' and 'light'.
 
-The individual colors of the theme can be separately overridden below. 
+If this variable is not set, Jolly will attempt to determine if the
+current window manager is in a dark or light mode using
+[dark-light](https://crates.io/crates/dark-light).
+
+If `dark-light` is not successful, then the 'light' theme will be used
+as a default.
+
+If any of the other `config.ui.theme` parameters are set, they will
+override the base values set by this variable. 
+
+The default theme palette is described below:
+
+### 'light' Theme
+| field name            | value                |
+|-----------------------|----------------------|
+| `accent_color`        | *see below* |
+| `background_color`    | 'white'              |
+| `text_color`          | 'black'              |
+| `selected_text_color` | 'white'              |
+
+### 'dark' Theme
+| field name            | value                |
+|-----------------------|----------------------|
+| `accent_color`        | *see below* |
+| `background_color`    | '#202225             |
+| `text_color`          | '#B3B3B3'            |
+| `selected_text_color` | 'black               |
+
+
 
 ## `accent_color` &mdash; *color string*
 
@@ -112,8 +147,13 @@ means that [HTML named
 colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
 RGB values can be used to specify the accent color.
 
-If the `accent_color` is left unspecified, then Jolly will attempt to
-load the accent color specified for the OS and use that.
+If the `accent_color` is left unspecified, then the behavior is platform specific: 
+
+| Platform            | Behavior                                |
+|---------------------|-----------------------------------------|
+| Windows             | Uses `UIColorType::Accent` if available |
+| All other Platforms | Uses default `iced` palette: '#5E7CE2'  |
+
 
 ## `background_color` &mdash; *color string*
 
@@ -131,6 +171,23 @@ color specified by the `base` theme.
 ## `text_color` &mdash; *color string*
 
 Specify the text color to use for the Jolly interface. 
+
+This parameter is a string, but it is interpreted as an HTML color
+using [csscolorparser](https://crates.io/crates/csscolorparser). This
+means that [HTML named
+colors](https://www.w3.org/TR/css-color-4/#named-colors) as well as
+RGB values can be used to specify the accent color.
+
+If the `text_color` is left unspecified, then Jolly will use the
+color specified by the `base` theme. 
+
+## `selected_text_color` &mdash; *color string*
+
+Specify the text color to use for the current selected Jolly Entry.
+
+When using a custom `accent_color` value, it maybe necessary to tweak
+this color to have enough contrast between the text and its
+background.
 
 This parameter is a string, but it is interpreted as an HTML color
 using [csscolorparser](https://crates.io/crates/csscolorparser). This
