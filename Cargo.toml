@@ -13,9 +13,9 @@ exclude = ["docs/"]
 rust-version = "1.65"
 
 [dependencies]
-iced = "0.6.0"
-iced_native = "0.7.0"
-toml = { version = "0.5.8", features = ["preserve_order"] }
+iced = "0.7.0"
+iced_native = "0.8.0"
+toml = { version = "0.7.1", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 dirs = "4"
 opener = "0.5.0"
@@ -28,14 +28,14 @@ dark-light = "1.0.0"
 tempfile = "3"
 
 [target.'cfg(windows)'.build-dependencies]
-resvg = "0.28.0"
-usvg = "0.28.0"
+resvg = "0.29.0"
+usvg = "0.29.0"
 tiny-skia = "0.8.2"
-ico = "0.2.0"
+ico = "0.3.0"
 winres = "0.1.12"
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.43.0"
+version = "0.44.0"
 features = [
 	 'UI_ViewManagement'
 ]

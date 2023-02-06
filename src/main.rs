@@ -54,7 +54,6 @@ impl StoreLoadedState {
 #[derive(Default)]
 struct Jolly {
     searchtext: String,
-    should_exit: bool,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
     modifiers: keyboard::Modifiers,
@@ -92,8 +91,7 @@ impl Jolly {
             if let Err(e) = result.map_err(error::Error::StoreError) {
                 self.move_to_err(e)
             } else {
-                self.should_exit = true;
-                Command::none()
+                iced::window::close()
             }
         }
     }
@@ -154,8 +152,7 @@ impl Application for Jolly {
                 }
             }
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
-                self.should_exit = true;
-                Command::none()
+                iced::window::close()
             }
             Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
                 println!("{:?}", path);
@@ -163,7 +160,7 @@ impl Application for Jolly {
             }
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
                 if e == ESCAPE_EVENT {
-                    self.should_exit = true;
+                    return iced::window::close();
                 } else if let keyboard::Event::ModifiersChanged(m) = e {
                     self.modifiers = m;
                 }
@@ -173,10 +170,6 @@ impl Application for Jolly {
             Message::EntrySelected(entry) => self.handle_selection(entry),
             _ => Command::none(),
         }
-    }
-
-    fn should_exit(&self) -> bool {
-        self.should_exit
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
