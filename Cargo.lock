@@ -1412,7 +1412,7 @@ checksum = "8eaf4bc02d17cbdd7ff4c7438cafcdf7fb9a4613313ad11b4f8fefe7d3fa0130"
 
 [[package]]
 name = "jolly"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "csscolorparser",
  "dark-light",
