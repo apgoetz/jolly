@@ -12,6 +12,7 @@
 ### Fixed
 
 - Jolly can show blank / garbage screen on startup on windows [#9](https://github.com/apgoetz/jolly/issues/7)
+- Starting Jolly while typing in another application prevents focus on windows [#14](https://github.com/apgoetz/jolly/issues/14)
 
 ## [0.1.1] - 2023-01-04
 
