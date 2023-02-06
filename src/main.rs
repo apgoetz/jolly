@@ -123,6 +123,8 @@ impl Application for Jolly {
                     window::Mode::Windowed,
                 ))),
                 text_input::focus(TEXT_INPUT_ID.clone()),
+                // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
+                Command::single(command::Action::Window(window::Action::GainFocus)),
             ]),
         )
     }
