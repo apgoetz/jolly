@@ -59,6 +59,9 @@ or click it with the mouse.
 
 To learn more about the file format used by Jolly, see the [file-format](docs/file-format.md) page.
 
+To learn more about changing settings for Jolly, including how to
+customize the theme, see the [config](config.md) page.
+
 To learn more advanced tips and tricks, see the [advanced](docs/advanced.md) usage page.
 
 # Why was this created
