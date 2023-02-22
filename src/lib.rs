@@ -14,7 +14,7 @@ use iced_native::{clipboard, command, event, keyboard, subscription, widget, win
 use lazy_static;
 
 pub mod config;
-mod display;
+mod entry;
 pub mod error;
 mod platform;
 mod search_results;

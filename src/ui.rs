@@ -1,7 +1,7 @@
 // eventually the jolly main window logic will move here out of main
 // but for now it will just hold settings.
 
-use crate::{display, theme};
+use crate::{entry, theme};
 use csscolorparser;
 use iced;
 use serde;
@@ -19,7 +19,7 @@ pub struct UISettings {
     pub common: InheritedSettings,
 
     pub search: SearchSettings,
-    pub entry: display::EntrySettings,
+    pub entry: entry::EntrySettings,
     pub max_results: usize,
 }
 
