@@ -15,6 +15,7 @@ pub const LOGFILE_NAME: &str = "jolly.toml";
 // file is not found.  if there is an error parsing the config, a
 // default value for settings will be used so at least a window will
 // show
+#[derive(Debug)]
 pub struct Config {
     pub settings: Settings,
     pub store: Result<Store, Error>,
@@ -61,7 +62,7 @@ fn get_logfile() -> Result<path::PathBuf, Error> {
     }
 }
 
-fn load_path<P: AsRef<path::Path>>(path: P) -> Result<Config, Error> {
+pub fn load_path<P: AsRef<path::Path>>(path: P) -> Result<Config, Error> {
     let txt = fs::read_to_string(path).map_err(Error::IoError)?;
     load_txt(&txt)
 }
