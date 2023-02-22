@@ -1,6 +1,6 @@
 use iced_native::{keyboard, text, widget};
 
-use crate::display;
+use crate::entry;
 use crate::store;
 use crate::ui;
 
@@ -68,7 +68,7 @@ impl SearchResults {
         for (i, e) in self.entries.iter().enumerate() {
             // unwrap will never panic since UI_MAX_RESULTS is const
             let entry: iced_native::Element<_, _> = {
-                let e = display::Entry::new(searchtext, e, &self.settings);
+                let e = entry::Entry::new(searchtext, e, &self.settings);
                 if i == self.selected {
                     e.selected().into()
                 } else {
