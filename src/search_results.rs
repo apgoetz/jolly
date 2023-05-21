@@ -1,21 +1,44 @@
-use iced_native::{keyboard, text, widget};
+use iced_native::{keyboard, widget};
 
 use crate::entry;
-use crate::store;
+use crate::theme;
 use crate::ui;
 
 const PADDING: u16 = 2;
 
 #[derive(Default)]
 pub struct SearchResults {
-    entries: Vec<store::StoreEntry>,
+    entries: Vec<entry::StoreEntry>,
     selected: usize,
     settings: ui::UISettings,
 }
 
+impl std::hash::Hash for SearchResults {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: std::hash::Hasher,
+    {
+        self.entries.hash(state);
+        self.selected.hash(state);
+    }
+}
+
+impl std::cmp::PartialEq for SearchResults {
+    fn eq(&self, other: &Self) -> bool {
+        use std::hash::{Hash, Hasher};
+
+        let mut s = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut s);
+
+        let mut o = std::collections::hash_map::DefaultHasher::new();
+        other.hash(&mut o);
+        s.finish() == o.finish()
+    }
+}
+
 impl SearchResults {
     pub fn new<'a>(
-        results: impl Iterator<Item = &'a store::StoreEntry>,
+        results: impl Iterator<Item = &'a entry::StoreEntry>,
         settings: &ui::UISettings,
     ) -> Self {
         SearchResults {
@@ -25,10 +48,8 @@ impl SearchResults {
         }
     }
 
-    pub fn height(&self) -> u32 {
-        let padding = PADDING as usize;
-        let height = self.settings.entry.height() as usize;
-        (self.entries.len() * height + padding * 2) as u32
+    pub fn selected(&self) -> &entry::StoreEntry {
+        &self.entries[self.selected]
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
@@ -59,26 +80,26 @@ impl SearchResults {
         f: F,
     ) -> iced_native::Element<'a, Message, Renderer>
     where
-        F: 'static + Fn(store::StoreEntry) -> Message,
-        Renderer: 'a + text::Renderer,
-        Renderer::Theme: iced::overlay::menu::StyleSheet,
-        Message: 'static,
+        F: 'static + Copy + Fn(entry::StoreEntry) -> Message,
+        Message: 'static + Clone,
+        Renderer: iced_native::renderer::Renderer<Theme = theme::Theme> + 'a,
+        Renderer: iced_native::text::Renderer,
     {
+        // if we dont have any entries, return an empty search results
+        // (if we dont do this, the empty column will still show its
+        // padding
+        if self.entries.is_empty() {
+            return iced::widget::Space::with_height(0).into();
+        }
+
         let mut column = widget::column::Column::new().padding(PADDING);
         for (i, e) in self.entries.iter().enumerate() {
             // unwrap will never panic since UI_MAX_RESULTS is const
-            let entry: iced_native::Element<_, _> = {
-                let e = entry::Entry::new(searchtext, e, &self.settings);
-                if i == self.selected {
-                    e.selected().into()
-                } else {
-                    e.into()
-                }
-            };
+            let entry_widget = e.build_entry(f, searchtext, &self.settings, i == self.selected);
 
-            column = column.push(entry);
+            column = column.push(entry_widget);
         }
         let element: iced_native::Element<'_, _, _> = column.into();
-        element.map(move |e| f(e))
+        element
     }
 }

@@ -11,36 +11,40 @@ webpage, but the basics are defined below.
 For the purposes of this example, we will refer to an example `jolly.toml` file located in this documentation (you can find a full version of the file [here](jolly.toml)):
 
 ```toml
-# use your system's default program to open this jolly database
+# Example Jolly File
 ['Edit Jolly Configuration']
 location = 'jolly.toml'
+description = "use your system's default program to open this jolly database"
 
-
-['Jolly Homepage']
-location = 'https://github.com/apgoetz/jolly'
-tags = ['docs','jolly']
+['Jolly Quick Start Guide']
+location = 'https://github.com/apgoetz/jolly/tree/main/docs'
 
 ['Search DuckDuckGo: %s']
-location = 'https://duckduckgo.com/?q=%s'
+url = 'https://duckduckgo.com/?q=%s'
 keyword = 'ddg'
 escape = true
 
-['Complain to Jolly Developers']
-location = 'mailto:example@example.com'
 
-# open system calculator (windows specific)
 ['Open Calculator']
 system = 'calc.exe'
 tags = ['math', 'work']
+desc = """Open your system's calculator app. This example uses Window's
+calc.exe, but for other OS's you may need change this entry.
+
+For example, on Debian, you can use 'gnome-calculator' and on MacOs you can use
+'/System/Applications/Calculator.app/Contents/MacOS/Calculator'
+"""
 ```
 
 ## Jolly Entries
 
 
 A jolly entry at its most basic is composed of a *name* and an *entry
-target*. The *name* represents a userfriendly description of the entry,
+target*. The *name* represents a userfriendly title of the entry,
 whereas the *entry target* represents the description of how jolly can access that
 entry.
+
+Each entry can also have an optional [description](#desc) that provides more detailed information about the entry.
 
 Jolly treats each table in the TOML file as its own entry, and the key of the table is treated as its *name*. 
 
@@ -86,6 +90,34 @@ In this entry, the *tags* are `math` and `work`. The user could search
 for this entry using any of the phrases 'open', 'math', 'work', and
 see the entry selected.
 
+## <a name="desc"></a> Description
+
+The *description* field can be used to provide an additional
+description of the Entry. This field is optional, but if it is
+present, the description text will be displyed under the entry in the
+results.
+
+This field is also aliased as *desc*, so either of the following will work: 
+
+```toml
+['Edit Jolly Configuration']
+description = "Use your system's default program to open this Jolly database"
+location = 'jolly.toml'
+```
+
+```toml
+['Edit Jolly Configuration']
+desc = "Use your system's default program to open this Jolly database"
+location = 'jolly.toml'
+```
+
+*Description* fields can be multiple lines. In this case, line breaks
+are skipped unless there are two newlines. (Same behavior as markdown
+paragraphs). If you try to use any other markdown syntax, Jolly will
+render your description as a unformatted text block (with hard newlines). 
+
+Lastly, *description* fields do not support using `%s` as a keyword
+parameter, unlike the title field. 
 
 ## Jolly Entry Target Types
 

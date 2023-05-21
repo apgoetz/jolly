@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use iced::{Application, Settings};
 use jolly::{config, error, Jolly};
 
@@ -11,7 +13,7 @@ pub fn main() -> Result<(), error::Error> {
     );
     settings.window.decorations = false;
     settings.window.visible = false;
-    settings.default_text_size = config.settings.ui.common.text_size();
+    settings.default_text_size = config.settings.ui.common.text_size().into();
     settings.flags = config;
 
     Jolly::run(settings).map_err(error::Error::IcedError)
