@@ -1,14 +1,14 @@
 // jolly error types
 
+use super::entry;
 use super::platform;
-use super::store;
 use iced;
 use std::error;
 use std::fmt;
 use std::io;
 #[derive(Debug)]
 pub enum Error {
-    StoreError(store::Error),
+    StoreError(entry::Error),
     IcedError(iced::Error),
     IoError(io::Error),
     ParseError(String),

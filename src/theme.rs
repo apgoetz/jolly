@@ -2,6 +2,9 @@
 use crate::{platform, ui};
 use iced::application;
 use iced::overlay::menu;
+use iced::widget::button;
+use iced::widget::container;
+use iced::widget::text;
 use iced::widget::text_input;
 use serde;
 use serde::de::{self, DeserializeSeed, Deserializer, Error, IntoDeserializer, MapAccess, Visitor};
@@ -232,8 +235,99 @@ impl application::StyleSheet for Theme {
     }
 }
 
+impl text::StyleSheet for Theme {
+    type Style = iced::theme::Text;
+    fn appearance(&self, style: Self::Style) -> text::Appearance {
+        let color = match style {
+            iced::theme::Text::Default => Some(self.text_color.clone().into()),
+            iced::theme::Text::Color(c) => Some(c),
+        };
+        text::Appearance { color: color }
+    }
+}
+
+#[derive(Default)]
+pub enum ButtonStyle {
+    #[default]
+    Transparent,
+    Selected,
+}
+
+impl button::StyleSheet for Theme {
+    type Style = ButtonStyle;
+    fn active(&self, style: &Self::Style) -> button::Appearance {
+        match style {
+            ButtonStyle::Transparent => button::Appearance {
+                shadow_offset: iced::Vector::default(),
+                text_color: self.text_color.clone().into(),
+                background: None,
+                border_radius: 0.0,
+                border_width: 0.0,
+                border_color: iced_native::Color::TRANSPARENT,
+            },
+
+            ButtonStyle::Selected => {
+                let accent_color: iced::Color = self.accent_color.clone().into();
+                button::Appearance {
+                    shadow_offset: iced::Vector::default(),
+                    text_color: self.selected_text_color.clone().into(),
+                    background: Some(accent_color.into()),
+                    border_radius: 5.0.into(),
+                    border_width: 1.0,
+                    border_color: iced_native::Color::TRANSPARENT,
+                }
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+pub enum ContainerStyle {
+    #[default]
+    Transparent,
+    Selected,
+}
+
+impl container::StyleSheet for Theme {
+    type Style = ContainerStyle;
+    fn appearance(&self, style: &Self::Style) -> container::Appearance {
+        match style {
+            ContainerStyle::Transparent => {
+                iced_native::Theme::default().appearance(&Default::default())
+            }
+
+            ContainerStyle::Selected => {
+                let accent_color: iced::Color = self.accent_color.clone().into();
+                container::Appearance {
+                    text_color: Some(self.selected_text_color.clone().into()),
+                    background: Some(accent_color.into()),
+                    border_radius: 5.0.into(),
+                    border_width: 1.0,
+                    border_color: iced_native::Color::TRANSPARENT,
+                }
+            }
+        }
+    }
+}
+
 impl text_input::StyleSheet for Theme {
     type Style = ();
+
+    // not used by jolly
+    fn disabled_color(
+        &self,
+        _: &<Self as iced::widget::text_input::StyleSheet>::Style,
+    ) -> iced::Color {
+        todo!()
+    }
+
+    // not used by jolly
+    fn disabled(
+        &self,
+        _: &<Self as iced::widget::text_input::StyleSheet>::Style,
+    ) -> iced::widget::text_input::Appearance {
+        todo!()
+    }
 
     fn active(&self, _style: &Self::Style) -> text_input::Appearance {
         let palette = self.extended_palette();
@@ -243,6 +337,7 @@ impl text_input::StyleSheet for Theme {
             border_radius: 2.0,
             border_width: 1.0,
             border_color: palette.background.strong.color,
+            icon_color: Default::default(),
         }
     }
 
@@ -254,6 +349,7 @@ impl text_input::StyleSheet for Theme {
             border_radius: 2.0,
             border_width: 1.0,
             border_color: palette.background.base.text,
+            icon_color: Default::default(),
         }
     }
 
@@ -265,6 +361,7 @@ impl text_input::StyleSheet for Theme {
             border_radius: 2.0,
             border_width: 1.0,
             border_color: palette.primary.base.color,
+            icon_color: Default::default(),
         }
     }
 

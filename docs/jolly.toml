@@ -1,26 +1,23 @@
-# use your system's default program to open this jolly database
+# Example Jolly File
 ['Edit Jolly Configuration']
 location = 'jolly.toml'
+description = "use your system's default program to open this jolly database"
 
-
-['Jolly Homepage']
-location = 'https://github.com/apgoetz/jolly'
-tags = ['docs','jolly']
-
+['Jolly Quick Start Guide']
+location = 'https://github.com/apgoetz/jolly/tree/main/docs'
 
 ['Search DuckDuckGo: %s']
-location = 'https://duckduckgo.com/?q=%s'
+url = 'https://duckduckgo.com/?q=%s'
 keyword = 'ddg'
 escape = true
 
-['Complain to Jolly Developers']
-location = 'mailto:example@example.com'
 
-# open your system's calculator app. This example uses the Windows
-# calculator app, but for other operating systems you may need to
-# replace the program. For example, on Debian, you can use
-# 'gnome-calculator' and on MacOs you can use
-# '/System/Applications/Calculator.app/Contents/MacOS/Calculator'
 ['Open Calculator']
 system = 'calc.exe'
 tags = ['math', 'work']
+desc = """Open your system's calculator app. This example uses Window's
+calc.exe, but for other OS's you may need change this entry.
+
+For example, on Debian, you can use 'gnome-calculator' and on MacOs you can use
+'/System/Applications/Calculator.app/Contents/MacOS/Calculator'
+"""
