@@ -1,6 +1,7 @@
 use iced_native::{keyboard, widget};
 
 use crate::entry;
+use crate::store;
 use crate::theme;
 use crate::ui;
 
@@ -8,7 +9,7 @@ const PADDING: u16 = 2;
 
 #[derive(Default)]
 pub struct SearchResults {
-    entries: Vec<entry::StoreEntry>,
+    entries: Vec<entry::EntryId>,
     selected: usize,
     settings: ui::UISettings,
 }
@@ -37,19 +38,16 @@ impl std::cmp::PartialEq for SearchResults {
 }
 
 impl SearchResults {
-    pub fn new<'a>(
-        results: impl Iterator<Item = &'a entry::StoreEntry>,
-        settings: &ui::UISettings,
-    ) -> Self {
+    pub fn new(results: impl Iterator<Item = entry::EntryId>, settings: &ui::UISettings) -> Self {
         SearchResults {
-            entries: results.cloned().take(settings.max_results).collect(),
+            entries: results.take(settings.max_results).collect(),
             selected: 0,
             settings: settings.clone(),
         }
     }
 
-    pub fn selected(&self) -> &entry::StoreEntry {
-        &self.entries[self.selected]
+    pub fn selected(&self) -> entry::EntryId {
+        self.entries[self.selected]
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
@@ -77,13 +75,15 @@ impl SearchResults {
     pub fn view<'a, F, Message, Renderer>(
         &'a self,
         searchtext: &str,
+        store: &'a store::Store,
         f: F,
     ) -> iced_native::Element<'a, Message, Renderer>
     where
-        F: 'static + Copy + Fn(entry::StoreEntry) -> Message,
+        F: 'static + Copy + Fn(entry::EntryId) -> Message,
         Message: 'static + Clone,
         Renderer: iced_native::renderer::Renderer<Theme = theme::Theme> + 'a,
         Renderer: iced_native::text::Renderer,
+        Renderer: iced_native::image::Renderer<Handle = iced::widget::image::Handle>,
     {
         // if we dont have any entries, return an empty search results
         // (if we dont do this, the empty column will still show its
@@ -94,12 +94,18 @@ impl SearchResults {
 
         let mut column = widget::column::Column::new().padding(PADDING);
         for (i, e) in self.entries.iter().enumerate() {
+            let entry = store.get(*e);
             // unwrap will never panic since UI_MAX_RESULTS is const
-            let entry_widget = e.build_entry(f, searchtext, &self.settings, i == self.selected);
+            let entry_widget =
+                entry.build_entry(f, searchtext, &self.settings, i == self.selected, *e);
 
             column = column.push(entry_widget);
         }
         let element: iced_native::Element<'_, _, _> = column.into();
         element
+    }
+
+    pub fn entries(&self) -> &[entry::EntryId] {
+        &self.entries
     }
 }

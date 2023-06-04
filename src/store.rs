@@ -11,7 +11,7 @@
 
 use toml;
 
-use crate::entry;
+use crate::{entry, icon};
 
 #[derive(Debug, Default, Clone)]
 pub struct Store {
@@ -29,7 +29,15 @@ impl Store {
         })
     }
 
-    pub fn find_matches(&self, query: &str) -> Vec<&entry::StoreEntry> {
+    pub fn get(&self, id: entry::EntryId) -> &entry::StoreEntry {
+        &self.entries[id]
+    }
+
+    pub fn get_mut(&mut self, id: entry::EntryId) -> &mut entry::StoreEntry {
+        &mut self.entries[id]
+    }
+
+    pub fn find_matches(&self, query: &str) -> Vec<entry::EntryId> {
         // get indicies of all entries with scores greater than zero
         let mut matches: Vec<_> = self
             .entries
@@ -44,7 +52,18 @@ impl Store {
         matches.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
         // get references to entries in sorted order
-        matches.iter().map(|s| &self.entries[s.0]).collect()
+        matches.iter().map(|s| s.0).collect()
+    }
+
+    pub fn load_icons(&mut self, entries: &[entry::EntryId], icache: &mut icon::IconCache) {
+        for e in entries {
+            let entry = &mut self.entries[*e];
+            if !entry.icon_loaded() {
+                if let Some(icon) = icache.get(&entry.icontype()) {
+                    entry.icon(icon);
+                }
+            }
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -114,6 +133,7 @@ pub mod tests {
             });
 
             for (l, r) in matches.into_iter().zip(r_entries) {
+                let l = store.get(l);
                 assert_eq!(
                     l,
                     r,
