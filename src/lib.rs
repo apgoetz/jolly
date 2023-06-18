@@ -35,7 +35,7 @@ pub enum Message {
     ExternalEvent(event::Event),
     EntrySelected(entry::EntryId),
     HeightChanged(u32),
-    StartedIconWorker(mpsc::Sender<icon::IconType>),
+    StartedIconWorker(mpsc::Sender<icon::IconCommand>),
     IconReceived(icon::IconType, icon::Icon),
 }
 
@@ -238,6 +238,11 @@ impl Application for Jolly {
             }
             Message::EntrySelected(entry) => self.handle_selection(entry),
             Message::StartedIconWorker(worker) => {
+                worker
+                    .send(icon::IconCommand::LoadSettings(
+                        self.settings.ui.icon.clone(),
+                    ))
+                    .expect("Could not send message to iconworker");
                 self.icache.set_cmd(worker);
 
                 Command::none()

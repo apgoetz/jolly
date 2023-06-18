@@ -93,6 +93,7 @@ struct RawStoreEntry {
     #[serde(alias = "desc")]
     description: Option<String>,
     tags: Option<Vec<String>>,
+    icon: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -102,7 +103,7 @@ enum Keyword {
     EscapedKeyword(String),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub struct StoreEntry {
     name: String,
     description: Option<String>,
@@ -165,14 +166,19 @@ impl StoreEntry {
             None => Vec::new(),
         };
 
-        let icon_type = match &entry {
-            EntryType::SystemEntry(loc) => icon::IconType::File(loc.into()),
-            EntryType::FileEntry(loc) => {
-                let parsed_loc = format_param(loc, "");
-                if Url::parse(&parsed_loc).is_ok() {
-                    icon::IconType::Url(parsed_loc)
-                } else {
-                    icon::IconType::File(parsed_loc.into())
+        let icon_type = if let Some(p) = raw_entry.icon {
+            icon::IconType::CustomIcon(p.into())
+        } else {
+            match &entry {
+                EntryType::SystemEntry(loc) => icon::IconType::File(loc.into()),
+                EntryType::FileEntry(loc) => {
+                    let parsed_loc = format_param(loc, "");
+
+                    if let Ok(url) = Url::parse(&parsed_loc) {
+                        icon::IconType::Url(url)
+                    } else {
+                        icon::IconType::File(parsed_loc.into())
+                    }
                 }
             }
         };
@@ -362,7 +368,11 @@ impl StoreEntry {
             None => iced::widget::Column::new(),
         };
 
-        let icon: iced::widget::image::Image = self.icon.unwrap_or_else(icon::default_icon).into();
+        let icon = iced::widget::image::Image::new(
+            self.icon
+                .clone()
+                .unwrap_or_else(|| icon::default_icon(&settings.icon)),
+        );
 
         let icon = icon
             .height(settings.entry.common.text_size())
@@ -463,6 +473,20 @@ mod tests {
 
     use super::*;
     use tempfile;
+
+    // lets cheat and use the hash of an entry for partial equivalence
+    // good enough for testing
+    impl std::cmp::PartialEq for StoreEntry {
+        fn eq(&self, other: &Self) -> bool {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut sh = DefaultHasher::new();
+            let mut oh = DefaultHasher::new();
+            self.hash(&mut sh);
+            other.hash(&mut oh);
+            sh.finish() == oh.finish()
+        }
+    }
 
     fn parse_entry(text: &str) -> StoreEntry {
         let value: toml::Value = toml::from_str(text).unwrap();
@@ -572,7 +596,7 @@ mod tests {
                     entry: EntryType::FileEntry("tel:12345".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::Url("tel:12345".into()),
+                    icon_type: IconType::Url(url::Url::parse("tel:12345").unwrap()),
                 },
             ),
             (
@@ -615,6 +639,19 @@ mod tests {
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
                     icon_type: IconType::File("foo.txt".into()),
+                },
+            ),
+            (
+                r#"['foo.txt']
+                   icon = "asdf.png""#,
+                StoreEntry {
+                    name: "foo.txt".to_string(),
+                    description: None,
+                    keyword: Keyword::None,
+                    entry: EntryType::FileEntry("foo.txt".to_string()),
+                    tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::CustomIcon("asdf.png".into()),
                 },
             ),
         ];
@@ -775,7 +812,10 @@ mod tests {
                "#,
         );
 
-        assert_eq!(entry.icon_type, IconType::Url("http://example.com/".into()));
+        assert_eq!(
+            entry.icon_type,
+            IconType::Url(url::Url::parse("http://example.com/").unwrap())
+        );
 
         let entry = parse_entry(
             r#"['a']

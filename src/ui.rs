@@ -1,7 +1,7 @@
 // eventually the jolly main window logic will move here out of main
 // but for now it will just hold settings.
 
-use crate::{entry, theme};
+use crate::{entry, icon, theme};
 use csscolorparser;
 use iced;
 use serde;
@@ -21,6 +21,7 @@ pub struct UISettings {
     pub search: SearchSettings,
     pub entry: entry::EntrySettings,
     pub max_results: usize,
+    pub icon: icon::IconSettings,
 }
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Default)]
@@ -61,6 +62,7 @@ impl Default for UISettings {
             search: SearchSettings::default(),
             entry: Default::default(),
             max_results: 5,
+            icon: Default::default(),
         }
     }
 }

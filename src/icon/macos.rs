@@ -5,11 +5,13 @@ use core_graphics::image::CGImageRef;
 use objc::rc::StrongPtr;
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
+use serde;
 
+#[derive(serde::Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Os;
 
 impl IconInterface for Os {
-    fn get_default_icon() -> Icon {
+    fn get_default_icon(&self) -> Icon {
         let ident: NSString = "public.item".into();
 
         unsafe {
@@ -22,13 +24,13 @@ impl IconInterface for Os {
         }
     }
 
-    fn get_icon_for_file<P: AsRef<std::path::Path>>(path: P) -> Option<Icon> {
+    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Option<Icon> {
         // now we have an icon! At this point, we can start
         // using the nicer wrappers from core_graphics-rs
         unsafe { icon_for_file(path.as_ref().as_os_str().into()) }
     }
 
-    fn get_icon_for_url(url: &str) -> Option<Icon> {
+    fn get_icon_for_url(&self, url: &str) -> Option<Icon> {
         unsafe {
             let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
 
@@ -77,11 +79,13 @@ unsafe fn image2icon(image: *mut Object) -> Option<Icon> {
         return None;
     }
 
-    Some(Icon::new(
-        cgicon.height() as u32,
-        cgicon.width() as u32,
-        cgicon.data().bytes(),
-    ))
+    let h = cgicon.height() as u32;
+    let w = cgicon.width() as u32;
+
+    // copies
+    let pixels = Vec::from(cgicon.data().bytes());
+
+    Some(Icon::from_pixels(h, w, pixels.leak()))
 }
 
 unsafe fn icon_for_file(path: NSString) -> Option<Icon> {
@@ -151,7 +155,5 @@ impl From<*mut Object> for NSString {
     }
 }
 
-mod test {
-
-    // empty
-}
+#[cfg(test)]
+mod tests {}
