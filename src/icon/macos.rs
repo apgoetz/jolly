@@ -156,4 +156,23 @@ impl From<*mut Object> for NSString {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+
+    #[test]
+    fn common_urls_are_iconlike() {
+        // test urls that default macos has support for
+        let urls = [
+            "http://example.com",
+            "https://example.com",
+            "mailto:example@example.com",
+            "help:asdf",
+        ];
+        for url in urls.iter() {
+            let icon = IconSettings::default()
+                .get_icon_for_url(url)
+                .expect(&format!(r#"could not load icon for url "{}""#, url));
+
+            iconlike(icon, &format!("for common url {}", url));
+        }
+    }
+}

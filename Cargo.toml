@@ -17,7 +17,7 @@ iced = { version = "0.9.0", features = ["image"] }
 iced_native = "0.10.0"
 toml = { version = "0.7.1", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
-dirs = "4"
+dirs = "5"
 opener = "0.5.0"
 urlencoding = "2.1.0"
 lazy_static = "1"
@@ -36,9 +36,16 @@ core-foundation = "0.9"
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 freedesktop-icons = "0.2"
 xdg-mime = "0.3.3"
+resvg = "0.34.0"
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.build-dependencies]
+freedesktop-icons = "0.2"
+dirs = "5"
+
 
 [dev-dependencies] 
 tempfile = "3"
+
 
 [target.'cfg(windows)'.build-dependencies]
 resvg = "0.29.0"

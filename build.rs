@@ -1,9 +1,59 @@
 // build script to add icon to Jolly executable.
 // this script is only used on windows platforms
 
-#[cfg(unix)]
+// no build requirements for macos FOR NOW
+#[cfg(target_os = "macos")]
 fn main() {}
 
+// check to make sure dependencies are installed
+#[cfg(all(unix, not(target_os = "macos")))]
+fn main() {
+    use std::env;
+
+    let theme = env::var("JOLLY_DEFAULT_THEME").unwrap_or("gnome".into());
+    println!("cargo:rustc-env=JOLLY_DEFAULT_THEME={}", theme);
+
+    // check default theme is installed
+    let themes = freedesktop_icons::list_themes();
+    if themes
+        .iter()
+        .filter(|t| t.to_uppercase() == theme.to_uppercase())
+        .next()
+        .is_none()
+    {
+        println!("cargo:warning=Jolly default icon theme '{}' does not seem to be installed. You can override the default theme via environment variable JOLLY_DEFAULT_THEME", theme);
+    }
+
+    // check  xdg-utils is installed
+    let path = env::var("PATH").unwrap_or("".into());
+    if path
+        .split(":")
+        .map(std::path::PathBuf::from)
+        .find(|p| p.join("xdg-settings").exists())
+        .is_none()
+    {
+        println!("cargo:warning=package `xdg-utils` does not seem to be installed. Icon support may be broken");
+    }
+
+    // check shared-mime-info installed
+    let mut xdg_data_dirs = env::var("XDG_DATA_DIRS").unwrap_or("".into());
+
+    if xdg_data_dirs.is_empty() {
+        xdg_data_dirs = "/usr/local/share/:/usr/share/".into();
+    }
+
+    let data_home = dirs::data_dir().unwrap_or("/nonexistant/path".into());
+
+    if std::iter::once(data_home)
+        .chain(xdg_data_dirs.split(":").map(std::path::PathBuf::from))
+        .find(|p| p.join("mime/mime.cache").exists())
+        .is_none()
+    {
+        println!("cargo:warning=package `shared-mime-info` does not seem to be installed. Icon support may be broken");
+    }
+}
+
+// set a nice icon
 #[cfg(windows)]
 fn main() {
     // determine path to save icon to

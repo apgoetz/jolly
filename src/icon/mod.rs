@@ -172,8 +172,6 @@ pub enum IconCommand {
 //create stream that satisfies the needs of iced_native::subscription::run
 // TODO: add tests
 pub fn icon_worker() -> mpsc::Receiver<Message> {
-    use std::time::Instant;
-
     // todo: fix magic for channel size
     let (mut output, sub_stream) = mpsc::channel(100);
 
@@ -202,9 +200,6 @@ pub fn icon_worker() -> mpsc::Receiver<Message> {
                 _ => break,
             };
 
-            print!("Processing cmd {:?}", &command);
-            let start = Instant::now();
-
             match command {
                 IconCommand::LoadIcon(icontype) => {
                     // todo: handle error
@@ -217,8 +212,6 @@ pub fn icon_worker() -> mpsc::Receiver<Message> {
                 }
                 _ => break,
             }
-
-            println!("Took {} ms", start.elapsed().as_millis())
         }
     });
     sub_stream
@@ -269,25 +262,6 @@ mod tests {
             IconSettings::default().get_icon_for_file(&cur_exe).unwrap(),
             "for current executable",
         );
-    }
-
-    #[test]
-    fn commons_urls_are_iconlike() {
-        // test urls that are so common, every platform should support
-        // them
-        let urls = [
-            "http://example.com",
-            "https://example.com",
-            "mailto:example@example.com",
-            "help:asdf",
-        ];
-        for url in urls.iter() {
-            let icon = IconSettings::default()
-                .get_icon_for_url(url)
-                .expect(&format!(r#"could not load icon for url "{}""#, url));
-
-            iconlike(icon, &format!("for common url {}", url));
-        }
     }
 
     #[test]
