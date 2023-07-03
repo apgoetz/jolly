@@ -1,17 +1,17 @@
 #![cfg(all(unix, not(target_os = "macos")))]
 // for now, this covers linux and the bsds
-use super::Icon;
+use super::{Context, Icon, IconError, FALLBACK_ICON};
 
-use lazy_static::lazy_static;
+use std::io::Read;
+
 use serde;
 use xdg_mime::SharedMimeInfo;
 
 // set in build script
 pub const DEFAULT_THEME: &str = env!("JOLLY_DEFAULT_THEME");
 
-lazy_static! {
-    static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
-}
+// TODO make mime sniff size a config parameter?
+const SNIFFSIZE: usize = 8 * 1024;
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
@@ -33,7 +33,7 @@ impl Default for Os {
 
 impl super::IconInterface for Os {
     fn get_default_icon(&self) -> Icon {
-        if let Some(icon) = self.get_icon_for_iname("text-x-generic") {
+        if let Ok(icon) = self.get_icon_for_iname("text-x-generic") {
             icon
         } else {
             // if you can't load the generic icon, you get a grey box
@@ -41,20 +41,20 @@ impl super::IconInterface for Os {
         }
     }
 
-    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Option<Icon> {
+    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Icon, IconError> {
         let path = path.as_ref();
-        let inames = self.get_iname_for_file(path);
+        let inames = self.get_iname_for_file(path)?;
 
-        for iname in inames {
-            let icon = self.get_icon_for_iname(&iname);
-            if icon.is_some() {
+        for iname in &inames {
+            let icon = self.get_icon_for_iname(iname);
+            if icon.is_ok() {
                 return icon;
             }
         }
-        None
+        Err(format!("No valid icon. inames were {:?}", inames).into())
     }
 
-    fn get_icon_for_url(&self, url: &str) -> Option<Icon> {
+    fn get_icon_for_url(&self, url: &str) -> Result<Icon, IconError> {
         let iname = self.get_iname_for_url(url)?;
         self.get_icon_for_iname(&iname)
     }
@@ -64,10 +64,10 @@ impl super::IconInterface for Os {
 }
 
 impl Os {
-    fn get_iname_for_url(&self, p: &str) -> Option<String> {
+    fn get_iname_for_url(&self, p: &str) -> Result<String, IconError> {
         use url::Url;
 
-        let url = Url::parse(p).ok()?;
+        let url = Url::parse(p).context("Url is not valid: {p}")?;
 
         use std::process::Command;
         let mut cmd = Command::new("xdg-settings");
@@ -85,17 +85,31 @@ impl Os {
             cmd.env("DE", "generic");
         }
 
-        let output = cmd.output().ok()?;
+        let output = cmd.output().context("xdg-settings unsuccessful")?;
 
-        // assume that we got back utf8 for the applcation name
-        chomp(String::from_utf8(output.stdout).ok())
+        // assume that we got back utf8 for the application name
+        let mut handler =
+            String::from_utf8(output.stdout).context("invalid utf8 from xdg-settings")?;
+        if handler.ends_with("\n") {
+            handler.pop();
+        }
+
+        if handler.is_empty() {
+            Err("no scheme handler found".into())
+        } else {
+            Ok(handler)
+        }
     }
 
-    fn get_iname_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Vec<String> {
-        let filename = match path.as_ref().as_os_str().to_str() {
-            Some(s) => s,
-            None => return vec![],
-        };
+    fn get_iname_for_file<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<Vec<String>, IconError> {
+        let filename = path
+            .as_ref()
+            .as_os_str()
+            .to_str()
+            .context("filename not valid unicode")?;
 
         use once_cell::sync::OnceCell;
 
@@ -111,56 +125,54 @@ impl Os {
             None => MIMEINFO.get_or_init(SharedMimeInfo::new),
         };
 
-        let mimes = mimeinfo.get_mime_types_from_file_name(filename);
-
-        let mut icon_names = Vec::with_capacity(mimes.len());
-
-        for m in mimes {
-            icon_names.append(&mut mimeinfo.lookup_icon_names(&m));
-        }
-
-        if icon_names[0] == "application-octet-stream" {
-            if let Some(mut name) = self.sniff_mimetypes(path, &mimeinfo) {
-                name.append(&mut icon_names);
-                return name;
-            }
-        }
-        icon_names
-    }
-
-    fn sniff_mimetypes<P: AsRef<std::path::Path>>(
-        &self,
-        path: P,
-        mimeinfo: &SharedMimeInfo,
-    ) -> Option<Vec<String>> {
-        use std::io::Read;
-
-        const SNIFFSIZE: usize = 8 * 1024;
-        let mut file = std::fs::File::open(path).ok()?;
+        // TODO, handle files we can see but not read
+        let mut file =
+            std::fs::File::open(filename).context("could not open file to sniff mimetype")?;
         let mut buf = vec![0u8; SNIFFSIZE];
-        let numread = file.read(buf.as_mut_slice()).ok()?;
+        let numread = file
+            .read(buf.as_mut_slice())
+            .context("Could not read bytes to sniff mimetype")?;
         buf.truncate(numread);
 
-        let (mime, _score) = mimeinfo.get_mime_type_for_data(&buf)?;
+        // this next part is a little gross, but xdg_mime currently
+        // hardcodes a mimetype of application/x-zerosize if a file is
+        // empty. So we need to run the mime sniffing 2 different
+        // ways, once with data and once without, and then lump them
+        // all together to find whichever one creates an icon
 
-        Some(mimeinfo.lookup_icon_names(&mime))
+        let guess = mimeinfo.guess_mime_type().path(filename).data(&buf).guess();
+
+        let fn_guess = mimeinfo.get_mime_types_from_file_name(filename);
+
+        let allmimes = std::iter::once(guess.mime_type().clone()).chain(fn_guess.into_iter());
+
+        let allparents = allmimes
+            .clone()
+            .flat_map(|m| mimeinfo.get_parents(&m).unwrap_or_default().into_iter());
+
+        Ok(allmimes
+            .chain(allparents)
+            .flat_map(|m| mimeinfo.lookup_icon_names(&m).into_iter())
+            .collect())
     }
 
     // for now do it the lame way and do our own svg rendering
-    fn icon_from_svg(&self, path: &std::path::Path) -> Option<Icon> {
+    fn icon_from_svg(&self, path: &std::path::Path) -> Result<Icon, IconError> {
         use resvg::usvg::TreeParsing;
-        let svg_data = std::fs::read(path).ok()?;
-        let utree = resvg::usvg::Tree::from_data(&svg_data, &Default::default()).ok()?;
+        let svg_data = std::fs::read(path).context("could not open file")?;
+        let utree = resvg::usvg::Tree::from_data(&svg_data, &Default::default())
+            .context("could not parse svg")?;
 
         let icon_size = self.icon_size as u32;
 
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(icon_size, icon_size)?;
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(icon_size, icon_size)
+            .context("could not create pixmap")?;
 
         let rtree = resvg::Tree::from_usvg(&utree);
 
         // we have non-square svg
         if rtree.size.width() != rtree.size.height() {
-            return None;
+            return Err("SVG icons must be square".into());
         }
 
         let scalefactor = icon_size as f32 / rtree.size.width();
@@ -168,14 +180,14 @@ impl Os {
 
         rtree.render(transform, &mut pixmap.as_mut());
 
-        Some(Icon::from_pixels(
+        Ok(Icon::from_pixels(
             icon_size,
             icon_size,
             pixmap.take().leak(),
         ))
     }
 
-    fn get_icon_for_iname(&self, icon_name: &str) -> Option<Icon> {
+    fn get_icon_for_iname(&self, icon_name: &str) -> Result<Icon, IconError> {
         use freedesktop_icons::lookup;
 
         let icon_name = icon_name.strip_suffix(".desktop").unwrap_or(icon_name);
@@ -183,32 +195,28 @@ impl Os {
         let icon_path = lookup(icon_name)
             .with_size(self.icon_size)
             .with_theme(&self.theme)
-            .find()?;
+            .find()
+            .ok_or("Could not lookup icon")?;
 
+        // TODO handle other supported icon types
         if icon_path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("png"))
         {
-            Some(iced::widget::image::Handle::from_path(icon_path))
+            Ok(iced::widget::image::Handle::from_path(icon_path))
         } else if icon_path
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
         {
             self.icon_from_svg(&icon_path)
         } else {
-            None
+            Err(format!(
+                "unsupported icon file type for icon {}",
+                icon_path.to_string_lossy()
+            )
+            .into())
         }
     }
-}
-
-fn chomp(s: Option<String>) -> Option<String> {
-    s.map(|mut s| {
-        if s.ends_with("\n") {
-            s.pop();
-        }
-        s
-    })
-    .filter(|s| !s.is_empty())
 }
 
 #[cfg(test)]
@@ -314,22 +322,23 @@ mod tests {
         xdg.register_mime("text/x-rust", "rs");
         let os = xdg.os(DEFAULT_THEME);
 
-        assert!(os.get_iname_for_url("http://google.com").is_none());
-        assert!(os.get_iname_for_url("tel:12345").is_some());
+        assert!(os.get_iname_for_url("http://google.com").is_err());
+        assert!(os.get_iname_for_url("tel:12345").is_ok());
     }
 
     #[test]
     fn test_load_file() {
+        let dir = tempfile::tempdir().unwrap();
         // build a mock xdg with the ability to handle rust source and nothing else
         let xdg = MockXdg::new();
         xdg.register_mime("text/x-rust", "rs");
         let os = xdg.os(DEFAULT_THEME);
-        let mimetypes = os.get_iname_for_file("test.rs");
-        assert!(mimetypes.contains(&"text-x-rust".into()));
-
+        let file = dir.path().join("test.rs");
+        std::fs::File::create(&file).unwrap();
+        let mimetypes = os.get_iname_for_file(file).unwrap();
         assert!(
-            mimetypes[0] != "application-octet-stream",
-            "mimetypes: {:?}",
+            mimetypes.contains(&"text-x-rust".into()),
+            "actual {:?}",
             mimetypes
         );
     }
@@ -352,10 +361,6 @@ mod tests {
 
         // cheat and use hash to see if we have gotten the fallback icon
         assert!(hash_eq_fallback(&icon));
-
-        // with a default icon loaded, we now load a path for the icon
-        let icon = xdg.os(DEFAULT_THEME).get_default_icon();
-        assert!(!hash_eq_fallback(&icon));
     }
 
     #[test]

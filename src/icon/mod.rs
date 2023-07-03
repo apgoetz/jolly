@@ -5,10 +5,18 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
+use url::Url;
+
+use std::error;
 
 mod linux_and_friends;
 mod macos;
 mod windows;
+
+use lazy_static::lazy_static;
+lazy_static! {
+    static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
+}
 
 #[cfg(target_os = "macos")]
 pub use macos::Os as IconSettings;
@@ -17,7 +25,45 @@ pub use macos::Os as IconSettings;
 pub use linux_and_friends::Os as IconSettings;
 
 #[cfg(target_os = "windows")]
-pub use windows::Os as IconSettings;
+pub use self::windows::Os as IconSettings;
+
+#[derive(Debug)]
+struct IconError(String, Option<Box<dyn error::Error + 'static>>);
+
+use std::fmt;
+impl fmt::Display for IconError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl error::Error for IconError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        self.1.as_deref()
+    }
+}
+
+impl<S: AsRef<str> + fmt::Display> From<S> for IconError {
+    fn from(value: S) -> Self {
+        Self(value.to_string(), None)
+    }
+}
+
+trait Context<T> {
+    fn context<S: AsRef<str> + fmt::Display>(self, msg: S) -> Result<T, IconError>;
+}
+
+impl<T, E: error::Error + 'static> Context<T> for Result<T, E> {
+    fn context<S: AsRef<str> + fmt::Display>(self, msg: S) -> Result<T, IconError> {
+        self.map_err(|e| IconError(msg.to_string(), Some(Box::new(e))))
+    }
+}
+
+impl<T> Context<T> for Option<T> {
+    fn context<S: AsRef<str> + fmt::Display>(self, msg: S) -> Result<T, IconError> {
+        self.ok_or(IconError(msg.to_string(), None))
+    }
+}
 
 // defines functions that must be implemented for every operating
 // system in order implement icons in jolly
@@ -29,40 +75,71 @@ trait IconInterface {
 
     // icon that would be used for a path that must exist
     // path is guaranteed to be already canonicalized
-    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Option<Icon>;
+    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Icon, IconError>;
 
     // icon to use for a specific url or protocol handler.
-    fn get_icon_for_url(&self, url: &str) -> Option<Icon>;
+    fn get_icon_for_url(&self, url: &str) -> Result<Icon, IconError>;
+
+    // version of get_default_icon that caches its value. One value for lifetime of application
+    fn cached_default(&self) -> Icon {
+        use once_cell::sync::OnceCell;
+        static DEFAULT_ICON: OnceCell<Icon> = OnceCell::new();
+
+        DEFAULT_ICON.get_or_init(|| self.get_default_icon()).clone()
+    }
 
     // provided method: uses icon interfaces to turn icontype into icon
     fn load_icon(&self, itype: IconType) -> Icon {
-        let icon = match itype {
-            IconType::Url(u) => self.get_icon_for_url(u.as_str()),
-            IconType::File(p) => {
+        let icon = match itype.0 {
+            IconVariant::Url(u) => self.get_icon_for_url(u.as_str()),
+            IconVariant::File(p) => {
                 if p.exists() {
                     if let Ok(p) = p.canonicalize() {
                         self.get_icon_for_file(p)
                     } else {
-                        None
+                        Err("File Icon does not exist".into())
                     }
                 } else {
-                    None
+                    Err("Cannot load icon for nonexistant file".into()) // TODO handle file type lookup by extension
                 }
             }
-            IconType::CustomIcon(p) => Some(Icon::from_path(p)),
+            IconVariant::CustomIcon(p) => Ok(Icon::from_path(p)),
         };
-        icon.unwrap_or(self.get_default_icon())
+        icon.unwrap_or(self.cached_default())
     }
 }
 
 // sufficient for now, until we implement SVG support
 pub type Icon = iced::widget::image::Handle;
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct IconType(IconVariant);
+
+impl IconType {
+    pub fn custom<P: AsRef<std::path::Path>>(path: P) -> Self {
+        Self(IconVariant::CustomIcon(path.as_ref().into()))
+    }
+    pub fn url(url: Url) -> Self {
+        // hack to make paths that start with disk drives not show up as URLs
+        #[cfg(target_os = "windows")]
+        if url.scheme().len() == 1
+            && "abcdefghijklmnopqrstuvwxyz".contains(url.scheme().chars().next().unwrap())
+        {
+            return Self(IconVariant::File(url.as_ref().into()));
+        }
+
+        Self(IconVariant::Url(url))
+    }
+    pub fn file<P: AsRef<std::path::Path>>(path: P) -> Self {
+        Self(IconVariant::File(path.as_ref().into()))
+    }
+}
+
 // represents the necessary information in an entry to look up an icon
 // type. Importantly, url based entries are assumed to have the same
 // icon if they have the same protocol (for example, all web links)
 #[derive(Debug, Clone)]
-pub enum IconType {
+enum IconVariant {
     // render using icon for protocol of url
     Url(url::Url),
     // render using icon for path
@@ -71,36 +148,36 @@ pub enum IconType {
     CustomIcon(std::path::PathBuf),
 }
 
-impl Hash for IconType {
+impl Hash for IconVariant {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
-            IconType::Url(u) => u.scheme().hash(state),
-            IconType::File(p) => p.hash(state),
-            IconType::CustomIcon(p) => p.hash(state),
+            IconVariant::Url(u) => u.scheme().hash(state),
+            IconVariant::File(p) => p.hash(state),
+            IconVariant::CustomIcon(p) => p.hash(state),
         }
     }
 }
 
-impl Eq for IconType {}
-impl PartialEq for IconType {
+impl Eq for IconVariant {}
+impl PartialEq for IconVariant {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            IconType::Url(s) => {
-                if let IconType::Url(o) = other {
+            IconVariant::Url(s) => {
+                if let IconVariant::Url(o) = other {
                     s.scheme() == o.scheme()
                 } else {
                     false
                 }
             }
-            IconType::File(s) => {
-                if let IconType::File(o) = other {
+            IconVariant::File(s) => {
+                if let IconVariant::File(o) = other {
                     s == o
                 } else {
                     false
                 }
             }
-            IconType::CustomIcon(s) => {
-                if let IconType::CustomIcon(o) = other {
+            IconVariant::CustomIcon(s) => {
+                if let IconVariant::CustomIcon(o) = other {
                     s == o
                 } else {
                     false
@@ -111,10 +188,7 @@ impl PartialEq for IconType {
 }
 
 pub fn default_icon(is: &IconSettings) -> Icon {
-    use once_cell::sync::OnceCell;
-    static DEFAULT_ICON: OnceCell<Icon> = OnceCell::new();
-
-    DEFAULT_ICON.get_or_init(|| is.get_default_icon()).clone()
+    is.cached_default()
 }
 
 use crate::Message;
@@ -219,9 +293,9 @@ pub fn icon_worker() -> mpsc::Receiver<Message> {
 
 #[cfg(test)]
 mod tests {
-    use super::{IconInterface, IconSettings};
+    use super::{Icon, IconError, IconInterface, IconSettings};
 
-    fn iconlike(icon: super::Icon, err_msg: &str) {
+    fn iconlike(icon: Icon, err_msg: &str) {
         match icon.data() {
             iced_native::image::Data::Path(p) => {
                 assert!(p.exists())
@@ -244,7 +318,23 @@ mod tests {
                     err_msg
                 )
             }
-        }
+        };
+
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let hash_eq_fallback = |icon: &Icon| {
+            let mut ihash = DefaultHasher::new();
+            let mut fhash = DefaultHasher::new();
+            icon.hash(&mut ihash);
+            super::FALLBACK_ICON.hash(&mut fhash);
+            ihash.finish() == fhash.finish()
+        };
+
+        assert!(
+            !hash_eq_fallback(&icon),
+            "icon hash matches fallback icon, should not occur during happycase"
+        );
     }
 
     #[test]
@@ -255,9 +345,13 @@ mod tests {
         );
     }
 
+    // ignore on linux since exes are all detected as libraries which
+    // dont have a default icon
     #[test]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn executable_is_iconlike() {
         let cur_exe = std::env::current_exe().unwrap();
+
         iconlike(
             IconSettings::default().get_icon_for_file(&cur_exe).unwrap(),
             "for current executable",
@@ -276,13 +370,13 @@ mod tests {
             fn get_icon_for_file<P: AsRef<std::path::Path>>(
                 &self,
                 path: P,
-            ) -> Option<crate::icon::Icon> {
+            ) -> Result<Icon, IconError> {
                 let path = path.as_ref();
                 assert!(path.as_os_str() == path.canonicalize().unwrap().as_os_str());
-                Some(self.get_default_icon())
+                Ok(self.get_default_icon())
             }
 
-            fn get_icon_for_url(&self, _url: &str) -> Option<crate::icon::Icon> {
+            fn get_icon_for_url(&self, _url: &str) -> Result<Icon, IconError> {
                 panic!("expected file, not url")
             }
         }
@@ -296,8 +390,76 @@ mod tests {
 
         let _file = std::fs::File::create(&filename).unwrap();
 
-        let icon_type = super::IconType::File(filename);
+        let icon_type = super::IconType(super::IconVariant::File(filename));
         let mock = MockIcon;
         mock.load_icon(icon_type);
+    }
+
+    #[test]
+    fn common_urls_are_iconlike() {
+        // test urls that default macos has support for
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        let happycase_urls = vec![
+            "http://example.com",
+            "https://example.com",
+            "mailto:example@example.com",
+        ];
+
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let happycase_urls: Vec<&str> = Vec::new();
+
+        #[cfg(windows)]
+        let happycase_urls = happycase_urls.clone().extend_from_slice(&[
+            "accountpicturefile:",
+            "AudioCD:",
+            "batfile:",
+            "fonfile:",
+            "hlpfile:",
+            "regedit:",
+            "read:",
+        ]);
+
+        let sadcase_urls = vec![
+            "totallynonexistantprotocol:",
+            "http:", // malformed url
+        ];
+
+        #[cfg(windows)]
+        let sadcase_urls = sadcase_urls.clone().extend_from_slice(&[
+            "anifile:", // uses %1 as the icon
+            "tel:",     // defined but empty on windows
+        ]);
+
+        let os = IconSettings::default();
+
+        for url in happycase_urls.iter() {
+            let icon = os
+                .get_icon_for_url(url)
+                .expect(&format!(r#"could not load icon for url "{}""#, url));
+
+            iconlike(icon, &format!("for common url {}", url));
+        }
+
+        for url in sadcase_urls.iter() {
+            os.get_icon_for_url(url)
+                .expect_err(&format!(r#"was able to load icon for url "{}""#, url));
+        }
+    }
+
+    #[test]
+    fn common_files_are_iconlike() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = ["foo.txt", "bar.html", "baz.png", "bat.pdf"];
+
+        let os = IconSettings::default();
+        for f in files {
+            let path = dir.path().join(f);
+            let file = std::fs::File::create(&path).unwrap();
+            file.sync_all().unwrap();
+
+            assert!(path.exists());
+            os.get_icon_for_file(&path)
+                .expect(&format!("No Icon for file: {f}"));
+        }
     }
 }

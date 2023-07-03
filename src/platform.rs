@@ -38,12 +38,12 @@ const DEFAULT_ACCENT_COLOR: ui::Color = ui::Color(csscolorparser::Color {
 
 // based on subprocess crate
 #[cfg(unix)]
-mod os {
+pub(crate) mod os {
     use crate::ui;
     use std::ffi::OsStr;
     use std::process::Command;
 
-    const SHELL: [&str; 2] = ["sh", "-c"];
+    pub const SHELL: [&str; 2] = ["sh", "-c"];
     pub const ACCENT_COLOR: &'static ui::Color = &super::DEFAULT_ACCENT_COLOR;
 
     // run a subshell and interpret results
@@ -53,14 +53,14 @@ mod os {
 }
 
 #[cfg(windows)]
-mod os {
+pub(crate) mod os {
     use crate::ui;
     use std::ffi::OsStr;
     use std::os::windows::process::CommandExt;
     use std::process::Command;
     use windows::UI::ViewManagement::{UIColorType, UISettings};
 
-    const SHELL: [&str; 2] = ["cmd.exe", "/c"];
+    pub const SHELL: [&str; 2] = ["cmd.exe", "/c"];
 
     // try and get the windows accent color. This wont work for
     // windows < 10

@@ -1,11 +1,12 @@
 #![cfg(target_os = "macos")]
 
-use super::{Icon, IconInterface};
+use super::{Context, Icon, IconError, IconInterface};
 use core_graphics::image::CGImageRef;
 use objc::rc::StrongPtr;
 use objc::runtime::Object;
 use objc::{class, msg_send, sel, sel_impl};
 use serde;
+use url::Url;
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct Os;
@@ -24,13 +25,15 @@ impl IconInterface for Os {
         }
     }
 
-    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Option<Icon> {
+    fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Icon, IconError> {
         // now we have an icon! At this point, we can start
         // using the nicer wrappers from core_graphics-rs
         unsafe { icon_for_file(path.as_ref().as_os_str().into()) }
     }
 
-    fn get_icon_for_url(&self, url: &str) -> Option<Icon> {
+    fn get_icon_for_url(&self, url: &str) -> Result<Icon, IconError> {
+        Url::parse(url).context("url is not valid")?; // TODO, hoist this out of all 3 implementations
+
         unsafe {
             let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
 
@@ -42,20 +45,20 @@ impl IconInterface for Os {
             let url: *mut Object = msg_send![nsurl, URLWithString: webstr];
 
             if url.is_null() {
-                return None;
+                return Err("Could not make NSURL".into());
             }
 
             // get app url
             let appurl: *mut Object = msg_send![workspace, URLForApplicationToOpenURL: url];
 
             if appurl.is_null() {
-                return None;
+                return Err("Could not get url of app for opening url".into());
             }
 
             let path: *mut Object = msg_send![appurl, path];
 
             if path.is_null() {
-                return None;
+                return Err("Could not get path of app url".into());
             }
 
             icon_for_file(path.into())
@@ -70,13 +73,15 @@ impl IconInterface for Os {
     }
 }
 
-unsafe fn image2icon(image: *mut Object) -> Option<Icon> {
+unsafe fn image2icon(image: *mut Object) -> Result<Icon, IconError> {
     let cgicon: *mut CGImageRef = msg_send![image, CGImageForProposedRect:0 context:0 hints:0];
-    let cgicon = cgicon.as_ref()?;
+    let cgicon = cgicon.as_ref().ok_or("Cannot get CGImage")?;
 
     // we dont know for sure we got RGBA data but we assume it for the rest of this function
-    if cgicon.bits_per_component() != 8 || cgicon.bits_per_pixel() != 32 {
-        return None;
+    let bpc = cgicon.bits_per_component();
+    let bpp = cgicon.bits_per_pixel();
+    if bpc != 8 || bpp != 32 {
+        return Err(format!("CGImage does not have 32bit depth: bpc: {bpc} bpp: {bpp}").into());
     }
 
     let h = cgicon.height() as u32;
@@ -85,10 +90,10 @@ unsafe fn image2icon(image: *mut Object) -> Option<Icon> {
     // copies
     let pixels = Vec::from(cgicon.data().bytes());
 
-    Some(Icon::from_pixels(h, w, pixels.leak()))
+    Ok(Icon::from_pixels(h, w, pixels.leak()))
 }
 
-unsafe fn icon_for_file(path: NSString) -> Option<Icon> {
+unsafe fn icon_for_file(path: NSString) -> Result<Icon, IconError> {
     //todo: null check on workspace
     let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
     let icon: *mut Object = msg_send![workspace, iconForFile: path];
@@ -151,28 +156,6 @@ impl From<*mut Object> for NSString {
             let p = s.as_ref().expect("Null Ptr While converting NSString");
             assert_eq!(p.class().name(), "__NSCFString");
             NSString(StrongPtr::new(s))
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn common_urls_are_iconlike() {
-        // test urls that default macos has support for
-        let urls = [
-            "http://example.com",
-            "https://example.com",
-            "mailto:example@example.com",
-            "help:asdf",
-        ];
-        for url in urls.iter() {
-            let icon = IconSettings::default()
-                .get_icon_for_url(url)
-                .expect(&format!(r#"could not load icon for url "{}""#, url));
-
-            iconlike(icon, &format!("for common url {}", url));
         }
     }
 }
