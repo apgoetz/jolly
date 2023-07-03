@@ -167,17 +167,17 @@ impl StoreEntry {
         };
 
         let icon_type = if let Some(p) = raw_entry.icon {
-            icon::IconType::CustomIcon(p.into())
+            icon::IconType::custom(p)
         } else {
             match &entry {
-                EntryType::SystemEntry(loc) => icon::IconType::File(loc.into()),
+                EntryType::SystemEntry(loc) => icon::IconType::file(loc),
                 EntryType::FileEntry(loc) => {
                     let parsed_loc = format_param(loc, "");
 
                     if let Ok(url) = Url::parse(&parsed_loc) {
-                        icon::IconType::Url(url)
+                        icon::IconType::url(url)
                     } else {
-                        icon::IconType::File(parsed_loc.into())
+                        icon::IconType::file(parsed_loc)
                     }
                 }
             }
@@ -570,7 +570,7 @@ mod tests {
                         .map(str::to_string)
                         .collect(),
                     icon: None,
-                    icon_type: IconType::File("test/location".into()),
+                    icon_type: IconType::file("test/location"),
                 },
             ),
             (
@@ -583,7 +583,7 @@ mod tests {
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::File("test/location".into()),
+                    icon_type: IconType::file("test/location"),
                 },
             ),
             (
@@ -596,7 +596,7 @@ mod tests {
                     entry: EntryType::FileEntry("tel:12345".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::Url(url::Url::parse("tel:12345").unwrap()),
+                    icon_type: IconType::url(url::Url::parse("tel:12345").unwrap()),
                 },
             ),
             (
@@ -612,7 +612,7 @@ mod tests {
                         .map(str::to_string)
                         .collect(),
                     icon: None,
-                    icon_type: IconType::File("test/location/foo.txt".into()),
+                    icon_type: IconType::file("test/location/foo.txt"),
                 },
             ),
             (
@@ -625,7 +625,7 @@ mod tests {
                     entry: EntryType::FileEntry("foo.txt".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::File("foo.txt".into()),
+                    icon_type: IconType::file("foo.txt"),
                 },
             ),
             (
@@ -638,7 +638,7 @@ mod tests {
                     entry: EntryType::FileEntry("foo.txt".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::File("foo.txt".into()),
+                    icon_type: IconType::file("foo.txt"),
                 },
             ),
             (
@@ -651,7 +651,7 @@ mod tests {
                     entry: EntryType::FileEntry("foo.txt".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
                     icon: None,
-                    icon_type: IconType::CustomIcon("asdf.png".into()),
+                    icon_type: IconType::custom("asdf.png"),
                 },
             ),
         ];
@@ -683,7 +683,7 @@ mod tests {
                 .map(str::to_string)
                 .collect(),
             icon: None,
-            icon_type: IconType::File("foo bar".into()),
+            icon_type: IconType::file("foo bar"),
         };
 
         let entry = parse_entry(&toml);
@@ -709,7 +709,7 @@ mod tests {
                 .map(str::to_string)
                 .collect(),
             icon: None,
-            icon_type: IconType::File(dirname.to_string().into()),
+            icon_type: IconType::file(dirname.to_string()),
         };
 
         let entry = parse_entry(&toml);
@@ -814,7 +814,7 @@ mod tests {
 
         assert_eq!(
             entry.icon_type,
-            IconType::Url(url::Url::parse("http://example.com/").unwrap())
+            IconType::url(url::Url::parse("http://example.com/").unwrap())
         );
 
         let entry = parse_entry(
@@ -824,6 +824,6 @@ mod tests {
                "#,
         );
 
-        assert_eq!(entry.icon_type, IconType::File(".txt".into()))
+        assert_eq!(entry.icon_type, IconType::file(".txt"))
     }
 }

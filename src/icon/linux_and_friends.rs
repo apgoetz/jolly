@@ -1,6 +1,6 @@
 #![cfg(all(unix, not(target_os = "macos")))]
 // for now, this covers linux and the bsds
-use super::Icon;
+use super::{Icon, FALLBACK_ICON};
 
 use lazy_static::lazy_static;
 use serde;
@@ -8,10 +8,6 @@ use xdg_mime::SharedMimeInfo;
 
 // set in build script
 pub const DEFAULT_THEME: &str = env!("JOLLY_DEFAULT_THEME");
-
-lazy_static! {
-    static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
-}
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(default)]
