@@ -1,6 +1,6 @@
 #![cfg(all(unix, not(target_os = "macos")))]
 // for now, this covers linux and the bsds
-use super::{Context, Icon, IconError, FALLBACK_ICON};
+use super::{icon_from_svg, Context, Icon, IconError, DEFAULT_ICON_SIZE, FALLBACK_ICON};
 
 use std::io::Read;
 
@@ -17,7 +17,6 @@ const SNIFFSIZE: usize = 8 * 1024;
 #[serde(default)]
 pub struct Os {
     pub theme: String,
-    pub icon_size: u16,
     xdg_folder: Option<String>,
 }
 
@@ -25,7 +24,6 @@ impl Default for Os {
     fn default() -> Self {
         Self {
             theme: DEFAULT_THEME.into(),
-            icon_size: 48,
             xdg_folder: None,
         }
     }
@@ -156,44 +154,13 @@ impl Os {
             .collect())
     }
 
-    // for now do it the lame way and do our own svg rendering
-    fn icon_from_svg(&self, path: &std::path::Path) -> Result<Icon, IconError> {
-        use resvg::usvg::TreeParsing;
-        let svg_data = std::fs::read(path).context("could not open file")?;
-        let utree = resvg::usvg::Tree::from_data(&svg_data, &Default::default())
-            .context("could not parse svg")?;
-
-        let icon_size = self.icon_size as u32;
-
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(icon_size, icon_size)
-            .context("could not create pixmap")?;
-
-        let rtree = resvg::Tree::from_usvg(&utree);
-
-        // we have non-square svg
-        if rtree.size.width() != rtree.size.height() {
-            return Err("SVG icons must be square".into());
-        }
-
-        let scalefactor = icon_size as f32 / rtree.size.width();
-        let transform = resvg::tiny_skia::Transform::from_scale(scalefactor, scalefactor);
-
-        rtree.render(transform, &mut pixmap.as_mut());
-
-        Ok(Icon::from_pixels(
-            icon_size,
-            icon_size,
-            pixmap.take().leak(),
-        ))
-    }
-
     fn get_icon_for_iname(&self, icon_name: &str) -> Result<Icon, IconError> {
         use freedesktop_icons::lookup;
 
         let icon_name = icon_name.strip_suffix(".desktop").unwrap_or(icon_name);
 
         let icon_path = lookup(icon_name)
-            .with_size(self.icon_size)
+            .with_size(DEFAULT_ICON_SIZE)
             .with_theme(&self.theme)
             .find()
             .ok_or("Could not lookup icon")?;
@@ -208,7 +175,7 @@ impl Os {
             .extension()
             .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
         {
-            self.icon_from_svg(&icon_path)
+            icon_from_svg(&icon_path)
         } else {
             Err(format!(
                 "unsupported icon file type for icon {}",
@@ -307,7 +274,6 @@ mod tests {
         fn os(&self, theme: &str) -> Os {
             Os {
                 theme: theme.into(),
-                icon_size: 48,
                 xdg_folder: Some(self.0.path().to_str().unwrap().into()),
             }
         }

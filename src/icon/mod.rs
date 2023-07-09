@@ -18,6 +18,20 @@ lazy_static! {
     static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
 }
 
+// TODO
+//
+// This is a list of supported icon formats by iced_graphics.
+// This is based on iced_graphics using image-rs to load images, and
+// looking at what features are enabled on that package. In the future
+// we may not compile support for all formats but (for now) we have a
+// comprehensive list here
+const SUPPORTED_ICON_EXTS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "pbm", "pam", "ppm", "pgm", "tiff", "tif", "tga", "dds",
+    "bmp", "ico", "hdr", "exr", "ff", "qoi",
+];
+
+const DEFAULT_ICON_SIZE: u16 = 48; // TODO, support other icon sizes
+
 #[cfg(target_os = "macos")]
 pub use macos::Os as IconSettings;
 
@@ -90,7 +104,12 @@ trait IconInterface {
 
     // provided method: uses icon interfaces to turn icontype into icon
     fn load_icon(&self, itype: IconType) -> Icon {
-        let icon = match itype.0 {
+        let icon = self.inner_load_icon(itype);
+        icon.unwrap_or(self.cached_default())
+    }
+
+    fn inner_load_icon(&self, itype: IconType) -> Result<Icon, IconError> {
+        match itype.0 {
             IconVariant::Url(u) => self.get_icon_for_url(u.as_str()),
             IconVariant::File(p) => {
                 if p.exists() {
@@ -103,9 +122,21 @@ trait IconInterface {
                     Err("Cannot load icon for nonexistant file".into()) // TODO handle file type lookup by extension
                 }
             }
-            IconVariant::CustomIcon(p) => Ok(Icon::from_path(p)),
-        };
-        icon.unwrap_or(self.cached_default())
+            IconVariant::CustomIcon(p) => {
+                let ext = p.extension().context("No extension on custom icon file")?;
+                if SUPPORTED_ICON_EXTS
+                    .iter()
+                    .find(|s| ext.eq_ignore_ascii_case(s))
+                    .is_some()
+                {
+                    Ok(Icon::from_path(p))
+                } else if ext.eq_ignore_ascii_case("svg") {
+                    icon_from_svg(&p)
+                } else {
+                    Err("is unsupported icon type".into())
+                }
+            }
+        }
     }
 }
 
@@ -291,9 +322,51 @@ pub fn icon_worker() -> mpsc::Receiver<Message> {
     sub_stream
 }
 
+// convert an svg file into a pixmap
+fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
+    use resvg::usvg::TreeParsing;
+    let svg_data = std::fs::read(path).context("could not open file")?;
+    let utree = resvg::usvg::Tree::from_data(&svg_data, &Default::default())
+        .context("could not parse svg")?;
+
+    let icon_size = DEFAULT_ICON_SIZE as u32;
+
+    let mut pixmap =
+        resvg::tiny_skia::Pixmap::new(icon_size, icon_size).context("could not create pixmap")?;
+
+    let rtree = resvg::Tree::from_usvg(&utree);
+
+    // we have non-square svg
+    if rtree.size.width() != rtree.size.height() {
+        return Err("SVG icons must be square".into());
+    }
+
+    let scalefactor = icon_size as f32 / rtree.size.width();
+    let transform = resvg::tiny_skia::Transform::from_scale(scalefactor, scalefactor);
+
+    rtree.render(transform, &mut pixmap.as_mut());
+
+    Ok(Icon::from_pixels(
+        icon_size,
+        icon_size,
+        pixmap.take().leak(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Icon, IconError, IconInterface, IconSettings};
+
+    fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut ihash = DefaultHasher::new();
+        let mut fhash = DefaultHasher::new();
+        icon.hash(&mut ihash);
+        ficon.hash(&mut fhash);
+        ihash.finish() == fhash.finish()
+    }
 
     fn iconlike(icon: Icon, err_msg: &str) {
         match icon.data() {
@@ -320,19 +393,8 @@ mod tests {
             }
         };
 
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let hash_eq_fallback = |icon: &Icon| {
-            let mut ihash = DefaultHasher::new();
-            let mut fhash = DefaultHasher::new();
-            icon.hash(&mut ihash);
-            super::FALLBACK_ICON.hash(&mut fhash);
-            ihash.finish() == fhash.finish()
-        };
-
         assert!(
-            !hash_eq_fallback(&icon),
+            !hash_eq_icon(&icon, &super::FALLBACK_ICON),
             "icon hash matches fallback icon, should not occur during happycase"
         );
     }
@@ -462,5 +524,42 @@ mod tests {
                 .expect(&format!("No Icon for file: {f}"));
         }
     }
-}
 
+    #[test]
+    fn load_custom_icons() {
+        use super::*;
+        // example test pbm image
+        let pbm_bytes = "P1\n2 2\n1 0 1 0".as_bytes();
+        // example test svg
+        let test_svg = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("icon/jolly.svg");
+
+        let dir = tempfile::tempdir().unwrap();
+
+        let pbm_fn = dir.path().join("test.pbm");
+
+        std::fs::write(&pbm_fn, pbm_bytes).unwrap();
+
+        let os = IconSettings::default();
+
+        let pbm_icon = os.inner_load_icon(IconType::custom(pbm_fn)).unwrap();
+        assert!(matches!(pbm_icon.data(), iced_native::image::Data::Path(_)));
+
+        os.inner_load_icon(IconType::custom("file_with_no_extension"))
+            .unwrap_err();
+
+        os.inner_load_icon(IconType::custom("unsupported_icon_type.pdf"))
+            .unwrap_err();
+
+        let svg_icon = os.inner_load_icon(IconType::custom(test_svg)).unwrap();
+        assert!(matches!(
+            svg_icon.data(),
+            iced_native::image::Data::Rgba {
+                width: w,
+                height: h,
+                pixels: _
+            }
+            if *w == DEFAULT_ICON_SIZE as u32 && *h == DEFAULT_ICON_SIZE as u32
+        ));
+    }
+}

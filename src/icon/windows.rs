@@ -28,19 +28,6 @@ use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, I
 
 const DEFAULT_ICONSIZE: u32 = 48;
 
-// TODO
-//
-// This is a list of supported icon formats by iced_graphics.
-// This is based on iced_graphics using image-rs to load images, and
-// looking at what features are enabled on that package. In the future
-// we may not compile support for all formats but (for now) we have a
-// comphrensive list here
-const SUPPORTED_ICON_EXTS: &[&str] = &[
-    "png", "jpg", "jpeg", "gif", "webp", "pbm", "pam", "ppm", "pgm", "tiff", "tif", "tga", "dds",
-    "bmp", "ico", "hdr", "exr", "ff", "qoi",
-];
-
-
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 pub struct Os;
 
