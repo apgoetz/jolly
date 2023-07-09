@@ -40,6 +40,7 @@ const SUPPORTED_ICON_EXTS: &[&str] = &[
     "bmp", "ico", "hdr", "exr", "ff", "qoi",
 ];
 
+
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 pub struct Os;
 
