@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use super::{Context, Icon, IconError, FALLBACK_ICON};
+use super::{Context, Icon, IconError, FALLBACK_ICON, SUPPORTED_ICON_EXTS};
 
 use serde;
 

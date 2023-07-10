@@ -471,15 +471,21 @@ mod tests {
         let happycase_urls: Vec<&str> = Vec::new();
 
         #[cfg(windows)]
-        let happycase_urls = happycase_urls.clone().extend_from_slice(&[
-            "accountpicturefile:",
-            "AudioCD:",
-            "batfile:",
-            "fonfile:",
-            "hlpfile:",
-            "regedit:",
-            "read:",
-        ]);
+        let happycase_urls: Vec<_> = happycase_urls
+            .into_iter()
+            .chain(
+                [
+                    "accountpicturefile:",
+                    "AudioCD:",
+                    "batfile:",
+                    "fonfile:",
+                    "hlpfile:",
+                    "regedit:",
+                    "read:",
+                ]
+                .into_iter(),
+            )
+            .collect();
 
         let sadcase_urls = vec![
             "totallynonexistantprotocol:",
@@ -487,10 +493,16 @@ mod tests {
         ];
 
         #[cfg(windows)]
-        let sadcase_urls = sadcase_urls.clone().extend_from_slice(&[
-            "anifile:", // uses %1 as the icon
-            "tel:",     // defined but empty on windows
-        ]);
+        let sadcase_urls: Vec<_> = sadcase_urls
+            .into_iter()
+            .chain(
+                [
+                    "anifile:", // uses %1 as the icon
+                    "tel:",     // defined but empty on windows
+                ]
+                .into_iter(),
+            )
+            .collect();
 
         let os = IconSettings::default();
 
