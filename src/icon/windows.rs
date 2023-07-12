@@ -42,6 +42,8 @@ impl Default for Os {
     }
 }
 
+// represents a
+#[derive(Debug)]
 struct WideString(Vec<u16>);
 
 impl<T: AsRef<Path>> From<T> for WideString {
@@ -59,12 +61,47 @@ impl<T: AsRef<Path>> From<T> for WideString {
 impl From<WideString> for String {
     fn from(val: WideString) -> Self {
         Self::from_utf16_lossy(&val.0)
+            .trim_end_matches(0 as char)
+            .to_string()
     }
 }
 
 impl WideString {
     fn pcwstr(&self) -> PCWSTR {
         PCWSTR(self.0.as_ptr())
+    }
+
+    // goal here is to make sure extended paths are properly converted
+    // widestrings. This can fail if extended path is to long to be
+    // represented by a PCWSTR
+    //
+    // https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry
+    fn from_path<P: AsRef<Path>>(val: P) -> Result<Self, IconError> {
+        use std::ffi::OsString;
+        const EXT_PATH: &str = r#"\\?\"#;
+        const UNC_PATH: &str = r#"\\?\UNC\"#;
+        let words = val.as_ref().as_os_str().encode_wide();
+        let path = val.as_ref().as_os_str().to_string_lossy();
+        let words: Vec<_> = if path.starts_with(UNC_PATH) {
+            OsString::from(r#"\\"#)
+                .as_os_str()
+                .encode_wide()
+                .chain(words.skip(UNC_PATH.len()))
+                .chain(std::iter::once(0))
+                .collect()
+        } else if path.starts_with(EXT_PATH) {
+            words
+                .skip(EXT_PATH.len())
+                .chain(std::iter::once(0))
+                .collect()
+        } else {
+            words.chain(std::iter::once(0)).collect()
+        };
+        if words.len() > MAX_PATH as usize {
+            return Err(format!("Path {path} is longer than MAX_PATH").into());
+        } else {
+            Ok(Self(words))
+        }
     }
 }
 
@@ -119,26 +156,7 @@ impl super::IconInterface for Os {
     }
 
     fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Icon, IconError> {
-        const EXTENDED_PATH_MAGIC: &str = r#"\\?\"#;
-        let num_skip;
-        if path
-            .as_ref()
-            .to_string_lossy()
-            .starts_with(EXTENDED_PATH_MAGIC)
-        {
-            num_skip = EXTENDED_PATH_MAGIC.len();
-        } else {
-            num_skip = 0;
-        }
-
-        let wide_path = WideString(
-            path.as_ref()
-                .as_os_str()
-                .encode_wide()
-                .skip(num_skip)
-                .chain(std::iter::once(0))
-                .collect(),
-        );
+        let wide_path = WideString::from_path(path.as_ref())?;
 
         if wide_path.0.len() > MAX_PATH as usize {
             return Err(format!(
@@ -482,11 +500,30 @@ fn get_icon_groups<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<i32>, IconE
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wide_string() {
+        let max_path = MAX_PATH as usize;
+
+        assert_eq!(
+            String::from(WideString::from_path(r#"\\?\asdf"#).unwrap()),
+            "asdf"
+        );
+        assert_eq!(
+            String::from(WideString::from_path(r#"\\?\UNC\asdf"#).unwrap()),
+            r#"\\asdf"#
+        );
+        assert_eq!(String::from(WideString::from_path("asdf").unwrap()), "asdf");
+
+        WideString::from_path("a".repeat(max_path + 1)).unwrap_err();
+        WideString::from_path("a".repeat(max_path)).unwrap_err();
+        WideString::from_path("a".repeat(max_path - 1)).unwrap();
+    }
 
     //TODO to test
 
     // have logic to test the following
-
     // entries with DefaultHandler wrapped in doublequotes work
     //
     // entries with incorrect resource id fallback to first actuall resource

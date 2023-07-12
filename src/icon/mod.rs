@@ -104,11 +104,11 @@ trait IconInterface {
 
     // provided method: uses icon interfaces to turn icontype into icon
     fn load_icon(&self, itype: IconType) -> Icon {
-        let icon = self.inner_load_icon(itype);
+        let icon = self.try_load_icon(itype);
         icon.unwrap_or(self.cached_default())
     }
 
-    fn inner_load_icon(&self, itype: IconType) -> Result<Icon, IconError> {
+    fn try_load_icon(&self, itype: IconType) -> Result<Icon, IconError> {
         match itype.0 {
             IconVariant::Url(u) => self.get_icon_for_url(u.as_str()),
             IconVariant::File(p) => {
@@ -526,6 +526,10 @@ mod tests {
         let files = ["foo.txt", "bar.html", "baz.png", "bat.pdf"];
 
         let os = IconSettings::default();
+
+        os.get_icon_for_file(dir.path())
+            .expect("No Icon for folder".into());
+
         for f in files {
             let path = dir.path().join(f);
             let file = std::fs::File::create(&path).unwrap();
@@ -554,16 +558,16 @@ mod tests {
 
         let os = IconSettings::default();
 
-        let pbm_icon = os.inner_load_icon(IconType::custom(pbm_fn)).unwrap();
+        let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
         assert!(matches!(pbm_icon.data(), iced_native::image::Data::Path(_)));
 
-        os.inner_load_icon(IconType::custom("file_with_no_extension"))
+        os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
 
-        os.inner_load_icon(IconType::custom("unsupported_icon_type.pdf"))
+        os.try_load_icon(IconType::custom("unsupported_icon_type.pdf"))
             .unwrap_err();
 
-        let svg_icon = os.inner_load_icon(IconType::custom(test_svg)).unwrap();
+        let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
             svg_icon.data(),
             iced_native::image::Data::Rgba {
