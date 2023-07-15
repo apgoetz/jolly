@@ -1,6 +1,7 @@
 #![cfg(target_os = "macos")]
 
-use super::{Context, Icon, IconError, IconInterface};
+use super::{Context, Icon, IconError, IconInterface, DEFAULT_ICON_SIZE};
+use core_graphics::geometry::{CGPoint, CGRect, CGSize};
 use core_graphics::image::CGImageRef;
 use objc::rc::StrongPtr;
 use objc::runtime::Object;
@@ -12,16 +13,16 @@ use url::Url;
 pub struct Os;
 
 impl IconInterface for Os {
-    fn get_default_icon(&self) -> Icon {
+    fn get_default_icon(&self) -> Result<Icon, IconError> {
         let ident: NSString = "public.item".into();
 
         unsafe {
             let typ: *mut Object = msg_send![class!(UTType), typeWithIdentifier: ident];
-            let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+            let workspace = get_workspace()?;
 
             let icon: *mut Object = msg_send![workspace, iconForContentType: typ];
-
-            image2icon(icon).expect("Could not get default icon")
+            let icon = icon.as_mut().context("iconForContentType was null")?;
+            image2icon(icon).context("Could not get default icon")
         }
     }
 
@@ -35,8 +36,6 @@ impl IconInterface for Os {
         Url::parse(url).context("url is not valid")?; // TODO, hoist this out of all 3 implementations
 
         unsafe {
-            let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
-
             let webstr: NSString = url.into();
 
             let nsurl = class!(NSURL);
@@ -47,6 +46,8 @@ impl IconInterface for Os {
             if url.is_null() {
                 return Err("Could not make NSURL".into());
             }
+
+            let workspace = get_workspace()?;
 
             // get app url
             let appurl: *mut Object = msg_send![workspace, URLForApplicationToOpenURL: url];
@@ -73,8 +74,20 @@ impl IconInterface for Os {
     }
 }
 
-unsafe fn image2icon(image: *mut Object) -> Result<Icon, IconError> {
-    let cgicon: *mut CGImageRef = msg_send![image, CGImageForProposedRect:0 context:0 hints:0];
+unsafe fn get_workspace() -> Result<&'static mut Object, IconError> {
+    let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+    workspace
+        .as_mut()
+        .context("Could not get sharedWorkspace: Null")
+}
+
+unsafe fn image2icon(image: &mut Object) -> Result<Icon, IconError> {
+    let rect = CGRect {
+        origin: CGPoint::new(0.0, 0.0),
+        size: CGSize::new(DEFAULT_ICON_SIZE as f64, DEFAULT_ICON_SIZE as f64),
+    };
+
+    let cgicon: *mut CGImageRef = msg_send![image, CGImageForProposedRect:&rect context:0 hints:0];
     let cgicon = cgicon.as_ref().ok_or("Cannot get CGImage")?;
 
     // we dont know for sure we got RGBA data but we assume it for the rest of this function
@@ -94,11 +107,11 @@ unsafe fn image2icon(image: *mut Object) -> Result<Icon, IconError> {
 }
 
 unsafe fn icon_for_file(path: NSString) -> Result<Icon, IconError> {
-    //todo: null check on workspace
-    let workspace: *mut Object = msg_send![class!(NSWorkspace), sharedWorkspace];
+    let workspace = get_workspace()?;
+
     let icon: *mut Object = msg_send![workspace, iconForFile: path];
 
-    image2icon(icon)
+    image2icon(icon.as_mut().context("Could not get iconForFile: null")?)
 }
 
 struct NSString(StrongPtr);
