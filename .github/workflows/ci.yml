@@ -41,8 +41,8 @@ jobs:
         toolchain: ${{ env.MSRV }}
 
     - name: Install dependencies
-       run: sudo apt-get install -y --no-install-recommends shared-mime-info xdg-utils gnome-icon-theme
-       if: startsWith(matrix.os, 'ubuntu-')
+      run: sudo apt-get install -y --no-install-recommends shared-mime-info xdg-utils gnome-icon-theme
+      if: startsWith(matrix.os, 'ubuntu-')
         
     - name: Build
       run: cargo build --verbose
