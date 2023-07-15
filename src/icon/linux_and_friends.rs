@@ -1,6 +1,6 @@
 #![cfg(all(unix, not(target_os = "macos")))]
 // for now, this covers linux and the bsds
-use super::{icon_from_svg, Context, Icon, IconError, DEFAULT_ICON_SIZE, FALLBACK_ICON};
+use super::{icon_from_svg, Context, Icon, IconError, DEFAULT_ICON_SIZE};
 
 use std::io::Read;
 
@@ -30,13 +30,8 @@ impl Default for Os {
 }
 
 impl super::IconInterface for Os {
-    fn get_default_icon(&self) -> Icon {
-        if let Ok(icon) = self.get_icon_for_iname("text-x-generic") {
-            icon
-        } else {
-            // if you can't load the generic icon, you get a grey box
-            FALLBACK_ICON.clone()
-        }
+    fn get_default_icon(&self) -> Result<Icon, IconError> {
+        self.get_icon_for_iname("text-x-generic")
     }
 
     fn get_icon_for_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<Icon, IconError> {
@@ -123,14 +118,20 @@ impl Os {
             None => MIMEINFO.get_or_init(SharedMimeInfo::new),
         };
 
+        let data: Option<Vec<_>>;
+
         // TODO, handle files we can see but not read
-        let mut file =
-            std::fs::File::open(filename).context("could not open file to sniff mimetype")?;
-        let mut buf = vec![0u8; SNIFFSIZE];
-        let numread = file
-            .read(buf.as_mut_slice())
-            .context("Could not read bytes to sniff mimetype")?;
-        buf.truncate(numread);
+        if let Ok(mut file) = std::fs::File::open(filename) {
+            let mut buf = vec![0u8; SNIFFSIZE];
+            if let Ok(numread) = file.read(buf.as_mut_slice()) {
+                buf.truncate(numread);
+                data = Some(buf);
+            } else {
+                data = None;
+            }
+        } else {
+            data = None;
+        }
 
         // this next part is a little gross, but xdg_mime currently
         // hardcodes a mimetype of application/x-zerosize if a file is
@@ -138,7 +139,10 @@ impl Os {
         // ways, once with data and once without, and then lump them
         // all together to find whichever one creates an icon
 
-        let guess = mimeinfo.guess_mime_type().path(filename).data(&buf).guess();
+        let guess = match data {
+            Some(buf) => mimeinfo.guess_mime_type().path(filename).data(&buf).guess(),
+            None => mimeinfo.guess_mime_type().path(filename).guess(),
+        };
 
         let fn_guess = mimeinfo.get_mime_types_from_file_name(filename);
 
@@ -194,7 +198,6 @@ mod tests {
     use tempfile;
 
     use super::*;
-    use crate::icon::IconInterface;
 
     // helper struct to allow building mock xdg data for testing
     struct MockXdg(tempfile::TempDir);
@@ -307,26 +310,6 @@ mod tests {
             "actual {:?}",
             mimetypes
         );
-    }
-
-    #[test]
-    fn test_default_icon_always_works() {
-        let xdg = MockXdg::new();
-        let icon = xdg.os("nonexistant_theme").get_default_icon();
-
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let hash_eq_fallback = |icon: &Icon| {
-            let mut ihash = DefaultHasher::new();
-            let mut fhash = DefaultHasher::new();
-            icon.hash(&mut ihash);
-            FALLBACK_ICON.hash(&mut fhash);
-            ihash.finish() == fhash.finish()
-        };
-
-        // cheat and use hash to see if we have gotten the fallback icon
-        assert!(hash_eq_fallback(&icon));
     }
 
     #[test]
