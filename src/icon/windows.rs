@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use super::{Context, Icon, IconError, FALLBACK_ICON, SUPPORTED_ICON_EXTS};
+use super::{Context, Icon, IconError, DEFAULT_ICON_SIZE, SUPPORTED_ICON_EXTS};
 
 use serde;
 
@@ -26,7 +26,11 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, ICONINFO};
 
-const DEFAULT_ICONSIZE: u32 = 48;
+impl Context<()> for BOOL {
+    fn context<S: AsRef<str> + std::fmt::Display>(self, msg: S) -> Result<(), IconError> {
+        self.ok().context(msg)
+    }
+}
 
 #[derive(serde::Deserialize, Debug, Clone, PartialEq)]
 pub struct Os;
@@ -58,11 +62,13 @@ impl<T: AsRef<Path>> From<T> for WideString {
     }
 }
 
-impl From<WideString> for String {
-    fn from(val: WideString) -> Self {
-        Self::from_utf16_lossy(&val.0)
+impl TryFrom<WideString> for String {
+    type Error = IconError;
+    fn try_from(val: WideString) -> Result<Self, Self::Error> {
+        Ok(Self::from_utf16(&val.0)
+            .context("Invalid utf16")?
             .trim_end_matches(0 as char)
-            .to_string()
+            .to_string())
     }
 }
 
@@ -81,7 +87,7 @@ impl WideString {
         const EXT_PATH: &str = r#"\\?\"#;
         const UNC_PATH: &str = r#"\\?\UNC\"#;
         let words = val.as_ref().as_os_str().encode_wide();
-        let path = val.as_ref().as_os_str().to_string_lossy();
+        let path = val.as_ref().as_os_str().to_string_lossy(); // can be lossy since we are only checking first few chars in the string
         let words: Vec<_> = if path.starts_with(UNC_PATH) {
             OsString::from(r#"\\"#)
                 .as_os_str()
@@ -106,7 +112,7 @@ impl WideString {
 }
 
 impl super::IconInterface for Os {
-    fn get_default_icon(&self) -> Icon {
+    fn get_default_icon(&self) -> Result<Icon, IconError> {
         let siid = SHSTOCKICONID(0); // SIID_DOCNOASSOC
         let uflags = SHGSI_FLAGS(0x000004000); // get system icon index
 
@@ -119,39 +125,25 @@ impl super::IconInterface for Os {
         };
 
         unsafe {
-            let list: IImageList = match SHGetImageList(0x2) {
-                Err(e) => {
-                    println!("could not get imagelist {}", e);
-                    return FALLBACK_ICON.clone();
-                }
-                Ok(l) => l,
-            };
+            let list: IImageList = SHGetImageList(0x2).context("could not get imagelist")?;
 
             // if we get an error, the lookup failed, fall back to builtin default
-            let result = SHGetStockIconInfo(siid, uflags, std::ptr::addr_of_mut!(psii));
-            if result.is_err() {
-                println!("Cannot lookup fallback icon {:?}", result);
-                return FALLBACK_ICON.clone();
-            }
+            SHGetStockIconInfo(siid, uflags, std::ptr::addr_of_mut!(psii))
+                .context("Cannot SHGetStockIconInfo default icon")?;
 
-            let hicon = match list.GetIcon(psii.iSysImageIndex, 0) {
-                Err(e) => {
-                    println!("could not get imagelist {}", e);
-                    return FALLBACK_ICON.clone();
-                }
-                Ok(i) => i,
-            };
+            let hicon = list
+                .GetIcon(psii.iSysImageIndex, 0)
+                .context("Could not GetIcon default icon")?;
 
             let icon = Self::get_icon_from_handle(hicon);
 
-            if !(hicon.is_invalid() || DestroyIcon(hicon).as_bool()) {
-                panic!("Could not destroy default icon handle");
+            if hicon.is_invalid() {
+                return Err("HICON is null for fallback image".into());
             }
 
-            icon.unwrap_or_else(|e| {
-                println!("{e}");
-                FALLBACK_ICON.clone()
-            })
+            DestroyIcon(hicon).context("Could not DestroyIcon fallback icon handle")?;
+
+            icon
         }
     }
 
@@ -169,8 +161,8 @@ impl super::IconInterface for Os {
         unsafe {
             let ifactory: IShellItemImageFactory =
                 SHCreateItemFromParsingName(wide_path.pcwstr(), None).context(format!(
-                    "could not get shell entry for path: {}",
-                    String::from(wide_path)
+                    "could not get shell entry for path: {:?}",
+                    String::try_from(wide_path)
                 ))?;
 
             //IShellItemImageFactory::GetImage
@@ -180,8 +172,8 @@ impl super::IconInterface for Os {
 			       | 0x20, //SIIGBF_CROPTOSQUARE
             );
             let size = SIZE {
-                cx: DEFAULT_ICONSIZE as i32,
-                cy: DEFAULT_ICONSIZE as i32,
+                cx: DEFAULT_ICON_SIZE as i32,
+                cy: DEFAULT_ICON_SIZE as i32,
             };
 
             let hbitmap = ifactory
@@ -218,8 +210,8 @@ impl super::IconInterface for Os {
 
             if outsize == 0 {
                 return Err(format!(
-                    "no icon defined for url with scheme {}",
-                    String::from(scheme)
+                    "no icon defined for url with scheme {:?}",
+                    String::try_from(scheme)
                 )
                 .into());
             }
@@ -251,11 +243,14 @@ impl super::IconInterface for Os {
                     .context("Error with SHLoadIndirectString")?;
 
                 // need to trim
-                String::from_utf16_lossy(&newpath)
+                String::from_utf16(&newpath)
+                    .context(format!("invalid utf16 in defaulticon for {}", url))?
                     .trim_end_matches(0 as char)
                     .to_string()
             } else {
-                String::from_utf16_lossy(outbuf.split_last().unwrap().1) // minus 1 to remove null terminator
+                String::from_utf16(outbuf.split_last().unwrap().1)
+                    .context(format!("invalid utf16 in defaulticon for {}", url))?
+                // minus 1 to remove null terminator
             };
 
             if SUPPORTED_ICON_EXTS
@@ -270,39 +265,53 @@ impl super::IconInterface for Os {
                 return Ok(Icon::from_path(path));
             }
 
-            let (mut file, index) = path.rsplit_once(",").unwrap_or((&path, "0"));
+            // if we have gotten to this point, we assume that the
+            // icon is of the form "file.exe,-1" where file.exe is the
+            // path to the file that has the icon, and the number is
+            // the index of the icon
+            Self::get_icon_from_file_and_index(path)
+        }
+    }
+}
 
-            // if the file name is wrapped in double quotes, remove it
-            let mut chars = file.chars();
-            if chars.next().is_some_and(|c| c == '"') && chars.next_back().is_some_and(|c| c == '"')
-            {
-                file = file
-                    .get(1..file.len() - 1)
-                    .context("could not remove quotes from file name")?;
-            }
+impl Os {
+    // takes a string of the  form "file.exe,-1" and looks up the HICON that is associated with that index
+    //
+    // if the index is not specified, uses first icon in file
+    // if the file name is wrapped in quotes, removes them
+    // if the index is specified but doesnt exist, falls back to using the first entry in the file.
+    fn get_icon_from_file_and_index(path: String) -> Result<Icon, IconError> {
+        let (mut file, index) = path.rsplit_once(",").unwrap_or((&path, "0"));
 
-            let index = index
-                .parse::<i32>()
-                .context(format!("cannot parse index as i32: {}", index))?;
+        // if the file name is wrapped in double quotes, remove it
+        let mut chars = file.chars();
+        if chars.next().is_some_and(|c| c == '"') && chars.next_back().is_some_and(|c| c == '"') {
+            file = file
+                .get(1..file.len() - 1)
+                .context("could not remove quotes from file name")?;
+        }
 
-            let mut hicon = HICON(0);
+        let index = index
+            .parse::<i32>()
+            .context(format!("cannot parse index as i32: {}", index))?;
 
-            let pcwstr = WideString::from(file).pcwstr();
+        let mut hicon = HICON(0);
 
+        let pcwstr = WideString::from(file).pcwstr();
+        unsafe {
             let result = SHDefExtractIconW(
                 pcwstr,
                 index,
                 0,
                 Some(std::ptr::addr_of_mut!(hicon)),
                 None,
-                DEFAULT_ICONSIZE,
+                DEFAULT_ICON_SIZE as u32,
             );
 
+            // if the first request for the icon doesnt work, we can
+            // fallback to using the first icon defined in the
+            // resource file
             if result.is_err() || hicon.is_invalid() {
-                println!(
-                    "Could not SHDefExtractIconW, try again with first indexed icon: {file},{index}",
-                );
-
                 let icon_groups = get_icon_groups(file)?;
 
                 let first_icon = *icon_groups
@@ -315,7 +324,7 @@ impl super::IconInterface for Os {
                     0,
                     Some(std::ptr::addr_of_mut!(hicon)),
                     None,
-                    DEFAULT_ICONSIZE,
+                    DEFAULT_ICON_SIZE as u32,
                 )
                 .context("Fallback SHDefExtractIconW Failed")?;
 
@@ -334,9 +343,7 @@ impl super::IconInterface for Os {
             result.context("could not convert hicon to image")
         }
     }
-}
 
-impl Os {
     unsafe fn get_icon_from_handle(handle: HICON) -> Result<Icon, IconError> {
         if handle.is_invalid() {
             return Err("invalid handle".into());
@@ -353,15 +360,21 @@ impl Os {
 
         let iconinfo = iconinfo.assume_init();
 
-        if !DeleteObject(iconinfo.hbmMask).as_bool() {
-            panic!("could not delete hbmMask");
+        if let Err(e1) = DeleteObject(iconinfo.hbmMask).context("Could not delete hbmMask") {
+            if let Err(e2) = DeleteObject(iconinfo.hbmColor).context("Could not delete hbmColor") {
+                return Err(e1).context(format!(
+                    "While processing this error, another error occured: {}",
+                    e2
+                ));
+            } else {
+                return Err(e1);
+            }
         }
 
         let icon = Self::get_icon_from_hbm(iconinfo.hbmColor);
 
-        if !DeleteObject(iconinfo.hbmColor).as_bool() {
-            return Err("Cannot delete hbmColor".into());
-        }
+        DeleteObject(iconinfo.hbmColor).context("Cannot delete hbmColor")?;
+
         icon
     }
     unsafe fn get_icon_from_hbm(hbm: HBITMAP) -> Result<Icon, IconError> {
@@ -404,8 +417,8 @@ impl Os {
             DIB_RGB_COLORS,
         );
 
-        if ReleaseDC(HWND(0), dc) == 0 {
-            panic!("could not release DC");
+        if ReleaseDC(HWND(0), dc) != 1 {
+            return Err("could not ReleaseDC".into());
         }
 
         if lines_read != cbitmap.bmHeight {
@@ -507,36 +520,72 @@ mod tests {
         let max_path = MAX_PATH as usize;
 
         assert_eq!(
-            String::from(WideString::from_path(r#"\\?\asdf"#).unwrap()),
+            String::try_from(WideString::from_path(r#"\\?\asdf"#).unwrap()).unwrap(),
             "asdf"
         );
         assert_eq!(
-            String::from(WideString::from_path(r#"\\?\UNC\asdf"#).unwrap()),
+            String::try_from(WideString::from_path(r#"\\?\UNC\asdf"#).unwrap()).unwrap(),
             r#"\\asdf"#
         );
-        assert_eq!(String::from(WideString::from_path("asdf").unwrap()), "asdf");
+        assert_eq!(
+            String::try_from(WideString::from_path("asdf").unwrap()).unwrap(),
+            "asdf"
+        );
 
         WideString::from_path("a".repeat(max_path + 1)).unwrap_err();
         WideString::from_path("a".repeat(max_path)).unwrap_err();
         WideString::from_path("a".repeat(max_path - 1)).unwrap();
     }
 
+    #[test]
+    fn test_get_icon_for_file_max_path() {
+        use crate::icon::IconInterface;
+
+        let max_path = MAX_PATH as usize;
+        let os = Os::default();
+
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path();
+        let remsize = max_path - path.as_os_str().encode_wide().count() - 1;
+
+        let over = path.join("a".repeat(remsize + 1));
+        let equal = path.join("a".repeat(remsize));
+        let under = path.join("a".repeat(remsize - 1));
+
+        std::fs::File::create(&over).unwrap();
+        std::fs::File::create(&equal).unwrap();
+        std::fs::File::create(&under).unwrap();
+
+        os.get_icon_for_file(over).unwrap_err();
+        os.get_icon_for_file(equal).unwrap_err();
+        os.get_icon_for_file(under).unwrap();
+    }
+
+    #[test]
+    fn test_indexed_resources() {
+        use crate::icon::tests::hash_eq_icon;
+        let filename = r#"C:\Windows\System32\shell32.dll"#;
+
+        Os::get_icon_from_file_and_index("nonexistant.dll".to_string()).unwrap_err();
+
+        let noindex = Os::get_icon_from_file_and_index(filename.to_string()).unwrap();
+        let index0 = Os::get_icon_from_file_and_index(format!("{filename},0")).unwrap();
+        let index999 = Os::get_icon_from_file_and_index(format!("{filename},999")).unwrap();
+        let negindex999 = Os::get_icon_from_file_and_index(format!("{filename},-999")).unwrap();
+        let quoted = Os::get_icon_from_file_and_index(format!(r#""{filename}",0"#)).unwrap();
+
+        assert!(hash_eq_icon(&noindex, &index0));
+        assert!(hash_eq_icon(&index999, &index0));
+        assert!(hash_eq_icon(&negindex999, &index0));
+        assert!(hash_eq_icon(&quoted, &index0));
+    }
+
     //TODO to test
 
     // have logic to test the following
-    // entries with DefaultHandler wrapped in doublequotes work
-    //
-    // entries with incorrect resource id fallback to first actuall resource
-    //
-    // get rid of all panics
-    // get rid of all prints
-
     // geticonforfile handles extended paths correctly (compare to windows)
 
-    // example local files that work
-    //"iTunes.m3u:", // files wrapped in doublequotes work
-    //"zoommtg:",    // real value should be -101 or 0, actual value is 1
-    //
     // undocumented ability to change icon size from 48 to something else
     //
 }

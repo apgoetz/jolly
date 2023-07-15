@@ -79,13 +79,15 @@ impl<T> Context<T> for Option<T> {
     }
 }
 
+trait IconImpl {}
+
 // defines functions that must be implemented for every operating
 // system in order implement icons in jolly
 trait IconInterface {
     // default icon to use if icon cannot be loaded.
     // must be infallible
     // the output is cached by icon module, so it should not be used be other logic
-    fn get_default_icon(&self) -> Icon;
+    fn get_default_icon(&self) -> Result<Icon, IconError>;
 
     // icon that would be used for a path that must exist
     // path is guaranteed to be already canonicalized
@@ -99,7 +101,9 @@ trait IconInterface {
         use once_cell::sync::OnceCell;
         static DEFAULT_ICON: OnceCell<Icon> = OnceCell::new();
 
-        DEFAULT_ICON.get_or_init(|| self.get_default_icon()).clone()
+        DEFAULT_ICON
+            .get_or_init(|| self.get_default_icon().unwrap_or(FALLBACK_ICON.clone()))
+            .clone()
     }
 
     // provided method: uses icon interfaces to turn icontype into icon
@@ -357,7 +361,7 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 mod tests {
     use super::{Icon, IconError, IconInterface, IconSettings};
 
-    fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
+    pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
 
@@ -402,7 +406,7 @@ mod tests {
     #[test]
     fn default_icon_is_iconlike() {
         iconlike(
-            IconSettings::default().get_default_icon(),
+            IconSettings::default().get_default_icon().unwrap(),
             "for default icon",
         );
     }
@@ -425,8 +429,8 @@ mod tests {
         struct MockIcon;
 
         impl IconInterface for MockIcon {
-            fn get_default_icon(&self) -> crate::icon::Icon {
-                super::Icon::from_pixels(1, 1, &[1, 1, 1, 1])
+            fn get_default_icon(&self) -> Result<crate::icon::Icon, crate::icon::IconError> {
+                Ok(super::Icon::from_pixels(1, 1, &[1, 1, 1, 1]))
             }
 
             fn get_icon_for_file<P: AsRef<std::path::Path>>(
@@ -435,7 +439,7 @@ mod tests {
             ) -> Result<Icon, IconError> {
                 let path = path.as_ref();
                 assert!(path.as_os_str() == path.canonicalize().unwrap().as_os_str());
-                Ok(self.get_default_icon())
+                self.get_default_icon()
             }
 
             fn get_icon_for_url(&self, _url: &str) -> Result<Icon, IconError> {
