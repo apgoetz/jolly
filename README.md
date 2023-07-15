@@ -17,10 +17,25 @@ Alternatively, for rust users, Jolly can be installed via cargo:
 cargo install jolly
 ```
 
+## Freedesktop based systems
+
+If you want to use Jolly on Linux and BSD based platforms, then icon
+support is based on freedesktop.org standards. This means that you
+will need the following packages installed:
+
++ xdg-utils
++ shared-mime-info
+
+In addition, at least one icon theme needs to be installed. The
+default icon theme can be customized at build time using the
+environment variable `JOLLY_DEFAULT_THEME`, or it can be configured at
+runtime in the config file.  See [icon
+documentation](docs/config#icon) for more details.
+
 ## NetBSD
 
-On NetBSD, a pre-compiled binary is available from the official repositories.
-To install Jolly, simply run:
+On NetBSD, a pre-compiled binary is available from the official
+repositories.  To install Jolly, simply run:
 
 ```bash
 pkgin install jolly

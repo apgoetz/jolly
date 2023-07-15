@@ -3,6 +3,31 @@
 // different implementations for macOs, windows, and linux. (linux and
 // BSDs assumed to use freedesktop compatible icon standards)
 
+// general overview and requirements for icon usage:
+//
+// Icons are mandatory for usage with Jolly.
+// Icons are generated based on the entry type.
+//
+// location entries get searched as a file. If the file does not
+// exist, a default icon may be returned
+//
+// url-like entries get searched as a protocol handler
+//
+// system entries are currently treated as file entries, which means
+// they usually fail to load since the system command is not usually a
+// file on disk.
+//
+// keyword entries are parsed by filling in their customizable value with a blank string ""
+//
+// If an icon cannot be loaded, we fall back to a platform specific default icon.
+//
+// If that default icon cannot be loaded, there is an extremely boring
+// (grey square) icon that is used instead.
+//
+// The default icon is always cached staticly (one use per crate)
+//
+// All of the other icon lookups can be optionally cached using the IconCache struct
+
 use std::collections::HashMap;
 use std::hash::Hash;
 use url::Url;
@@ -96,7 +121,8 @@ trait IconInterface {
     // icon to use for a specific url or protocol handler.
     fn get_icon_for_url(&self, url: &str) -> Result<Icon, IconError>;
 
-    // version of get_default_icon that caches its value. One value for lifetime of application
+    // provided method: version of get_default_icon that caches its
+    // value. One value for lifetime of application
     fn cached_default(&self) -> Icon {
         use once_cell::sync::OnceCell;
         static DEFAULT_ICON: OnceCell<Icon> = OnceCell::new();
@@ -112,6 +138,7 @@ trait IconInterface {
         icon.unwrap_or(self.cached_default())
     }
 
+    // convert an icontype into an icon
     fn try_load_icon(&self, itype: IconType) -> Result<Icon, IconError> {
         match itype.0 {
             IconVariant::Url(u) => self.get_icon_for_url(u.as_str()),

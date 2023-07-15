@@ -51,13 +51,13 @@ Below is more detail about the available settings:
 | `entry`       | *table*   | customize result entries       |
 | `text_size`   | *integer* | font size for UI.              |
 | `max_results` | *integer* | max number of results to show. |
+| `icon`        | *table*   | customize the display of icons |
 
 
 
 ## `width`        &mdash; *integer*
 
 Determines the width of the Jolly window. Defined in virtual units as used by `iced`
-
 
 
 ## `search`       &mdash; *table*
@@ -235,3 +235,37 @@ key `config.ui.text_size` is already set, this key will override the
 size only for the entry results.
 
 Default text size is 20. 
+
+# [config.ui.icon]
+
+*Only valid for Linux and BSD platforms*
+
+This table contains settings for customizing how icons are displayed in Jolly.
+
+Currently there is only one field available: 
+
+| field name | data type | description                          |
+|------------|-----------|--------------------------------------|
+| `theme`    | *string*  | icon theme to use (Freedesktop only) |
+
+## <a name="icon"></a> `theme` &mdash; *string*
+
+The value of this option should be the name of a Freedesktop icon
+theme to use on Linux and BSD platforms. There is no standard way to
+specify which icon theme the user is using, so they should specify it
+using this option. If this option is not set, then Jolly will use a
+compile-time default, currently the `"gnome"` theme. If this theme is
+not installed, then a fallback blank grey icon will be used for all
+icons.
+
+If you would like to change the compile time default theme, you can
+use the environment variable `JOLLY_DEFAULT_THEME`.
+
+For example, to build jolly with a default theme of "Adwaita": 
+
+```
+JOLLY_DEFAULT_THEME=Adwaita cargo build
+```
+
+As a general rule, the jolly build script will warn if the
+`JOLLY_DEFAULT_THEME` doesn't seem to be installed at compile time.
