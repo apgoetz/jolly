@@ -52,7 +52,7 @@ make install
 uses [iced](https://github.com/iced-rs/iced) for its GUI implementation, which
 is a fast moving project that generally only targets the latest stable
 rustc. Therefore Jolly will also usually target the same MSRV as
-`iced`. (Currently 1.65.0)
+`iced`. (Currently 1.70.0)
 
 # Quick Introduction
 
