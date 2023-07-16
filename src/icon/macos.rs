@@ -62,7 +62,7 @@ impl IconInterface for Os {
                 return Err("Could not get path of app url".into());
             }
 
-            icon_for_file(path.into())
+            icon_for_file(path.try_into()?)
         }
         // convert to URL. Determine application url, get path to application, get icon for file
 
@@ -163,12 +163,20 @@ impl From<&str> for NSString {
     }
 }
 
-impl From<*mut Object> for NSString {
-    fn from(s: *mut Object) -> NSString {
+impl TryFrom<*mut Object> for NSString {
+    type Error = IconError;
+    fn try_from(s: *mut Object) -> Result<Self, Self::Error> {
+        use objc::runtime::{BOOL, NO};
         unsafe {
-            let p = s.as_ref().expect("Null Ptr While converting NSString");
-            assert_eq!(p.class().name(), "__NSCFString");
-            NSString(StrongPtr::new(s))
+            let p = s.as_ref().context("Null Ptr While converting NSString")?;
+
+            let result: BOOL = msg_send![p, isKindOfClass: class!(NSString)];
+
+            if result == NO {
+                return Err("Conversion error: Object is not isKindOfClass NSString".into());
+            }
+
+            Ok(NSString(StrongPtr::new(s)))
         }
     }
 }
