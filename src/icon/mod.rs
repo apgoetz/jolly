@@ -509,7 +509,6 @@ mod tests {
                     "fonfile:",
                     "hlpfile:",
                     "regedit:",
-                    "read:",
                 ]
                 .into_iter(),
             )
