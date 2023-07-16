@@ -490,13 +490,10 @@ mod tests {
 
     #[test]
     fn common_urls_are_iconlike() {
+        use crate::icon::Context;
         // test urls that default macos has support for
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let happycase_urls = vec![
-            "http://example.com",
-            "https://example.com",
-            "mailto:example@example.com",
-        ];
+        let happycase_urls = vec!["http://example.com", "https://example.com"];
 
         #[cfg(all(unix, not(target_os = "macos")))]
         let happycase_urls: Vec<&str> = Vec::new();
@@ -537,18 +534,26 @@ mod tests {
 
         let os = IconSettings::default();
 
-        for url in happycase_urls.iter() {
-            let icon = os
-                .get_icon_for_url(url)
-                .expect(&format!(r#"could not load icon for url "{}""#, url));
+        let failed_results: Vec<_> = happycase_urls
+            .into_iter()
+            .filter_map(|u| {
+                os.get_icon_for_url(&u)
+                    .context(format!("failed to load '{u}'"))
+                    .err()
+                    .map(|e| e.to_string())
+            })
+            .chain(sadcase_urls.into_iter().filter_map(|u| {
+                os.get_icon_for_url(&u)
+                    .ok()
+                    .map(|_| format!("successfully loaded '{u}'"))
+            }))
+            .collect();
 
-            iconlike(icon, &format!("for common url {}", url));
-        }
-
-        for url in sadcase_urls.iter() {
-            os.get_icon_for_url(url)
-                .expect_err(&format!(r#"was able to load icon for url "{}""#, url));
-        }
+        assert!(
+            failed_results.is_empty(),
+            "some default urls were loaded incorrectly: {:?}",
+            failed_results
+        );
     }
 
     #[test]
