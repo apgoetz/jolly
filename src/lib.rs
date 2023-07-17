@@ -12,10 +12,12 @@ use iced::{executor, Application, Command, Element, Renderer};
 use iced_native::widget::text_input;
 use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
 use lazy_static;
+use std::sync::mpsc;
 
 pub mod config;
 mod entry;
 pub mod error;
+mod icon;
 mod measured_container;
 mod platform;
 mod search_results;
@@ -31,8 +33,10 @@ lazy_static::lazy_static! {
 pub enum Message {
     SearchTextChanged(String),
     ExternalEvent(event::Event),
-    EntrySelected(entry::StoreEntry),
+    EntrySelected(entry::EntryId),
     HeightChanged(u32),
+    StartedIconWorker(mpsc::Sender<icon::IconCommand>),
+    IconReceived(icon::IconType, icon::Icon),
 }
 
 enum StoreLoadedState {
@@ -47,15 +51,6 @@ impl Default for StoreLoadedState {
     }
 }
 
-impl StoreLoadedState {
-    fn store(&self) -> Option<&store::Store> {
-        match self {
-            StoreLoadedState::LoadSucceeded(s, _) => Some(s),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Default)]
 pub struct Jolly {
     searchtext: String,
@@ -63,6 +58,7 @@ pub struct Jolly {
     search_results: search_results::SearchResults,
     modifiers: keyboard::Modifiers,
     settings: settings::Settings,
+    icache: icon::IconCache,
 }
 
 impl Jolly {
@@ -83,10 +79,15 @@ impl Jolly {
         }))
     }
 
-    fn handle_selection(
-        &mut self,
-        entry: entry::StoreEntry,
-    ) -> Command<<Jolly as Application>::Message> {
+    fn handle_selection(&mut self, id: entry::EntryId) -> Command<<Jolly as Application>::Message> {
+        // we can only continue if the store is loaded
+        let store = match &self.store_state {
+            StoreLoadedState::LoadSucceeded(s, _) => s,
+            _ => return Command::none(),
+        };
+
+        let entry = store.get(id);
+
         // if the user is pressing the command key, we want to copy to
         // clipboard instead of opening the link
         if self.modifiers.command() {
@@ -149,6 +150,32 @@ impl Application for Jolly {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        // first, match the messages that would cause us to quit regardless of application state
+        match message {
+            Message::ExternalEvent(event::Event::Keyboard(e)) => {
+                if let keyboard::Event::KeyReleased {
+                    key_code: key,
+                    modifiers: _,
+                } = e
+                {
+                    if key == keyboard::KeyCode::Escape {
+                        return iced::window::close();
+                    }
+                }
+            }
+            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
+                return iced::window::close();
+            }
+            _ => (), // dont care at this point about other messages
+        };
+
+        // then, check if we are loaded. ifwe have failed to laod, we stop processing messages
+        let store = match &mut self.store_state {
+            StoreLoadedState::LoadSucceeded(s, _) => s,
+            _ => return Command::none(),
+        };
+
+        // if we are here, we are loaded and we dont want to quit
         match message {
             Message::HeightChanged(height) => {
                 Command::single(command::Action::Window(window::Action::Resize {
@@ -156,30 +183,28 @@ impl Application for Jolly {
                     height: height,
                 }))
             }
-            Message::SearchTextChanged(txt)
-                if matches!(self.store_state, StoreLoadedState::LoadSucceeded(_, _)) =>
-            {
+            Message::SearchTextChanged(txt) => {
                 self.searchtext = txt;
-                if let Some(store) = self.store_state.store() {
-                    let matches = store.find_matches(&self.searchtext).into_iter();
-                    let new_results =
-                        search_results::SearchResults::new(matches, &self.settings.ui);
 
-                    if new_results != self.search_results {
-                        self.search_results = new_results;
-                        // since the search text changed we need to
-                        // recalculate window height for the new results. So
-                        // resize the window to hide the results until the new
-                        // height is available
-                        return self.min_height_command();
-                    } else if self.searchtext.is_empty() {
-                        return self.min_height_command();
-                    }
+                let matches = store.find_matches(&self.searchtext).into_iter();
+
+                // todo: determine which entries need icons
+                let new_results = search_results::SearchResults::new(matches, &self.settings.ui);
+
+                // load icons of whatever matches are being displayed
+                store.load_icons(new_results.entries(), &mut self.icache);
+
+                if new_results != self.search_results {
+                    self.search_results = new_results;
+                    // since the search text changed we need to
+                    // recalculate window height for the new results. So
+                    // resize the window to hide the results until the new
+                    // height is available
+                    return self.min_height_command();
+                } else if self.searchtext.is_empty() {
+                    return self.min_height_command();
                 }
                 Command::none()
-            }
-            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
-                iced::window::close()
             }
             Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
                 println!("{:?}", path);
@@ -196,12 +221,12 @@ impl Application for Jolly {
                     } else if key == keyboard::KeyCode::NumpadEnter
                         || key == keyboard::KeyCode::Enter
                     {
-                        return self.handle_selection(self.search_results.selected().clone());
+                        return self.handle_selection(self.search_results.selected());
                     }
                 }
 
                 if keyboard::Event::CharacterReceived('\r') == e {
-                    return self.handle_selection(self.search_results.selected().clone());
+                    return self.handle_selection(self.search_results.selected());
                 }
 
                 if let keyboard::Event::ModifiersChanged(m) = e {
@@ -212,12 +237,31 @@ impl Application for Jolly {
                 Command::none()
             }
             Message::EntrySelected(entry) => self.handle_selection(entry),
+            Message::StartedIconWorker(worker) => {
+                worker
+                    .send(icon::IconCommand::LoadSettings(
+                        self.settings.ui.icon.clone(),
+                    ))
+                    .expect("Could not send message to iconworker");
+                self.icache.set_cmd(worker);
+
+                Command::none()
+            }
+            Message::IconReceived(it, icon) => {
+                self.icache.add_icon(it, icon);
+
+                store.load_icons(self.search_results.entries(), &mut self.icache);
+
+                Command::none()
+            }
             _ => Command::none(),
         }
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
-        subscription::events().map(Message::ExternalEvent)
+        let channel = subscription::run(icon::icon_worker);
+        let external = subscription::events().map(Message::ExternalEvent);
+        subscription::Subscription::batch([channel, external].into_iter())
     }
 
     fn view(&self) -> Element<'_, Message, Renderer<Self::Theme>> {
@@ -237,10 +281,17 @@ impl Application for Jolly {
                 .padding(self.settings.ui.search.padding),
         );
 
-        column = column.push(
-            self.search_results
-                .view(&self.searchtext, Message::EntrySelected),
-        );
+        // we can only continue if the store is loaded
+        let store = match &self.store_state {
+            StoreLoadedState::LoadSucceeded(s, _) => s,
+            _ => return column.into(),
+        };
+
+        column = column.push(self.search_results.view(
+            &self.searchtext,
+            store,
+            Message::EntrySelected,
+        ));
         measured_container::MeasuredContainer::new(column, Message::HeightChanged).into()
     }
 

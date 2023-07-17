@@ -5,10 +5,12 @@ use std::fmt;
 use std::ops::Deref;
 
 use serde::Deserialize;
+use url::Url;
 
-use crate::platform;
+use crate::icon::Icon;
 use crate::theme;
 use crate::ui;
+use crate::{icon, platform};
 
 use crate::config::LOGFILE_NAME;
 
@@ -20,6 +22,8 @@ const FULL_NAME_W: u32 = 10;
 const PARTIAL_TAG_W: u32 = 2;
 const STARTSWITH_TAG_W: u32 = 4;
 const FULL_TAG_W: u32 = 6;
+
+pub type EntryId = usize;
 
 #[derive(Debug)]
 pub enum Error {
@@ -89,6 +93,7 @@ struct RawStoreEntry {
     #[serde(alias = "desc")]
     description: Option<String>,
     tags: Option<Vec<String>>,
+    icon: Option<String>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -98,13 +103,15 @@ enum Keyword {
     EscapedKeyword(String),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub struct StoreEntry {
     name: String,
     description: Option<String>,
     entry: EntryType,
     tags: Vec<String>,
     keyword: Keyword,
+    icon_type: icon::IconType,
+    icon: Option<Icon>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -159,12 +166,31 @@ impl StoreEntry {
             None => Vec::new(),
         };
 
+        let icon_type = if let Some(p) = raw_entry.icon {
+            icon::IconType::custom(p)
+        } else {
+            match &entry {
+                EntryType::SystemEntry(loc) => icon::IconType::file(loc),
+                EntryType::FileEntry(loc) => {
+                    let parsed_loc = format_param(loc, "");
+
+                    if let Ok(url) = Url::parse(&parsed_loc) {
+                        icon::IconType::url(url)
+                    } else {
+                        icon::IconType::file(parsed_loc)
+                    }
+                }
+            }
+        };
+
         Ok(StoreEntry {
             name: name.to_string(),
             description: raw_entry.description,
             entry: entry,
             tags: tags,
             keyword: keyword,
+            icon_type,
+            icon: None,
         })
     }
 
@@ -243,26 +269,18 @@ impl StoreEntry {
     // format example:
     //
 
-    fn format<S: AsRef<str>>(&self, fmt_str: &str, searchtext: S) -> String {
+    pub fn format_name(&self, searchtext: &str) -> String {
         if self.keyword == Keyword::None {
-            return fmt_str.to_string();
+            return self.name.clone();
         }
 
-        fmt_str
-            .split("%%")
-            .map(|s| s.replace("%s", searchtext.as_ref()))
-            .collect::<Vec<_>>()
-            .join("%")
-    }
-
-    pub fn format_name(&self, searchtext: &str) -> String {
         let param = if let Some((_, back)) = searchtext.split_once(char::is_whitespace) {
             back
         } else {
             "%s"
         };
 
-        self.format(&self.name, param)
+        format_param(&self.name, param)
     }
 
     pub fn format_selection(&self, searchtext: &str) -> String {
@@ -272,16 +290,18 @@ impl StoreEntry {
             "%s"
         };
 
-        let escaped_param = match self.keyword {
-            Keyword::EscapedKeyword(_) => urlencoding::encode(param).into_owned(),
-            _ => param.to_string(),
-        };
-
         let s = match &self.entry {
             EntryType::FileEntry(s) => s,
             EntryType::SystemEntry(s) => s,
         };
-        self.format(s, escaped_param)
+
+        let escaped_param = match self.keyword {
+            Keyword::EscapedKeyword(_) => urlencoding::encode(param).into_owned(),
+            Keyword::None => return s.clone(),
+            _ => param.to_string(),
+        };
+
+        format_param(s, escaped_param)
     }
 
     pub fn handle_selection(&self, searchtext: &str) -> Result<(), Error> {
@@ -299,12 +319,14 @@ impl StoreEntry {
         searchtext: &str,
         settings: &ui::UISettings,
         selected: bool,
+        my_id: EntryId,
     ) -> iced_native::Element<'a, Message, Renderer>
     where
-        F: 'static + Copy + Fn(StoreEntry) -> Message,
+        F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
         Renderer: iced_native::renderer::Renderer<Theme = theme::Theme> + 'a,
         Renderer: iced_native::text::Renderer,
+        Renderer: iced_native::image::Renderer<Handle = iced::widget::image::Handle>,
     {
         let text_color = if selected {
             settings.theme.selected_text_color.clone()
@@ -346,9 +368,28 @@ impl StoreEntry {
             None => iced::widget::Column::new(),
         };
 
+        let icon = iced::widget::image::Image::new(
+            self.icon
+                .clone()
+                .unwrap_or_else(|| icon::default_icon(&settings.icon)),
+        );
+
+        let icon = icon
+            .height(settings.entry.common.text_size())
+            .width(settings.entry.common.text_size());
+
+        let icon_row = iced::widget::Row::new()
+            .height(iced::Length::Fixed(
+                (settings.entry.common.text_size() + 4) as f32,
+            ))
+            .spacing(2)
+            .align_items(iced_native::Alignment::Center)
+            .push(icon)
+            .push(title_text);
+
         let column = iced::widget::Column::new()
             .width(iced_native::Length::Fill)
-            .push(title_text)
+            .push(icon_row)
             .push(description);
 
         // need an empty container to create padding around title.
@@ -356,13 +397,35 @@ impl StoreEntry {
         //     iced::widget::container::Container::new(title_text).padding::<u16>(0u16.into());
 
         let button = iced::widget::button::Button::new(column)
-            .on_press(message_func(self.clone()))
+            .on_press(message_func(my_id))
             .style(button_style)
             .width(iced_native::Length::Fill);
 
         let element: iced_native::Element<'_, _, _> = button.into();
         element
     }
+
+    // pull out the icon type of this entry in preparation for
+    // determing it. current icontype is replaced with pending value
+    pub fn icontype(&self) -> &icon::IconType {
+        &self.icon_type
+    }
+
+    pub fn icon(&mut self, icon: Icon) {
+        self.icon = Some(icon);
+    }
+
+    pub fn icon_loaded(&self) -> bool {
+        self.icon.is_some()
+    }
+}
+
+fn format_param<S: AsRef<str>>(fmt_str: &str, searchtext: S) -> String {
+    fmt_str
+        .split("%%")
+        .map(|s| s.replace("%s", searchtext.as_ref()))
+        .collect::<Vec<_>>()
+        .join("%")
 }
 
 fn desc_to_paragraphs(desc: &str) -> Option<Vec<String>> {
@@ -406,8 +469,24 @@ fn desc_to_paragraphs(desc: &str) -> Option<Vec<String>> {
 
 #[cfg(test)]
 mod tests {
+    use crate::icon::IconType;
+
     use super::*;
     use tempfile;
+
+    // lets cheat and use the hash of an entry for partial equivalence
+    // good enough for testing
+    impl std::cmp::PartialEq for StoreEntry {
+        fn eq(&self, other: &Self) -> bool {
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut sh = DefaultHasher::new();
+            let mut oh = DefaultHasher::new();
+            self.hash(&mut sh);
+            other.hash(&mut oh);
+            sh.finish() == oh.finish()
+        }
+    }
 
     fn parse_entry(text: &str) -> StoreEntry {
         let value: toml::Value = toml::from_str(text).unwrap();
@@ -422,13 +501,11 @@ mod tests {
 
     #[test]
     fn case_sensitive() {
-        let entry = StoreEntry {
-            name: "fOO.txt".to_string(),
-            description: None,
-            keyword: Keyword::None,
-            entry: EntryType::FileEntry("test/location/asdf.txt".to_string()),
-            tags: ["FOO"].into_iter().map(str::to_string).collect(),
-        };
+        let entry = parse_entry(
+            r#"['fOO.txt']
+                location = "test/location/asdf.txt"
+		tags = ['FOO']"#,
+        );
 
         // if we give a lowercase query, then default case insensitive match
         assert_eq!(entry.score("fo"), STARTSWITH_TAG_W);
@@ -440,16 +517,11 @@ mod tests {
 
     #[test]
     fn non_keword_score() {
-        let entry = StoreEntry {
-            name: "foo.txt".to_string(),
-            description: None,
-            keyword: Keyword::None,
-            entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
-            tags: ["foo", "bar", "baz"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
-        };
+        let entry = parse_entry(
+            r#"['foo.txt']
+                location = "test/location/foo.txt"
+		tags = ["foo", "bar", "baz"]"#,
+        );
 
         assert_eq!(entry.score("tx"), PARTIAL_NAME_W);
         assert_eq!(entry.score("foo"), FULL_TAG_W);
@@ -466,16 +538,12 @@ mod tests {
 
     #[test]
     fn keword_score() {
-        let entry = StoreEntry {
-            name: "foo.txt".to_string(),
-            description: None,
-            keyword: Keyword::RawKeyword("y".to_string()),
-            entry: EntryType::FileEntry("test/location/foo.txt".to_string()),
-            tags: ["foo", "bar", "baz"]
-                .into_iter()
-                .map(str::to_string)
-                .collect(),
-        };
+        let entry = parse_entry(
+            r#"['foo.txt']
+                location = "test/location/foo.txt"
+                keyword = "y"
+		tags = ["foo", "bar", "baz"]"#,
+        );
 
         // if you dont use a keyword, score normally
         assert_eq!(entry.score("fo"), STARTSWITH_TAG_W);
@@ -501,6 +569,8 @@ mod tests {
                         .into_iter()
                         .map(str::to_string)
                         .collect(),
+                    icon: None,
+                    icon_type: IconType::file("test/location"),
                 },
             ),
             (
@@ -512,6 +582,21 @@ mod tests {
                     keyword: Keyword::None,
                     entry: EntryType::FileEntry("test/location".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::file("test/location"),
+                },
+            ),
+            (
+                r#"['foo.txt']
+                    location = "tel:12345""#,
+                StoreEntry {
+                    name: "foo.txt".to_string(),
+                    description: None,
+                    keyword: Keyword::None,
+                    entry: EntryType::FileEntry("tel:12345".to_string()),
+                    tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::url(url::Url::parse("tel:12345").unwrap()),
                 },
             ),
             (
@@ -526,6 +611,8 @@ mod tests {
                         .into_iter()
                         .map(str::to_string)
                         .collect(),
+                    icon: None,
+                    icon_type: IconType::file("test/location/foo.txt"),
                 },
             ),
             (
@@ -537,6 +624,8 @@ mod tests {
                     keyword: Keyword::None,
                     entry: EntryType::FileEntry("foo.txt".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::file("foo.txt"),
                 },
             ),
             (
@@ -548,6 +637,21 @@ mod tests {
                     keyword: Keyword::None,
                     entry: EntryType::FileEntry("foo.txt".to_string()),
                     tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::file("foo.txt"),
+                },
+            ),
+            (
+                r#"['foo.txt']
+                   icon = "asdf.png""#,
+                StoreEntry {
+                    name: "foo.txt".to_string(),
+                    description: None,
+                    keyword: Keyword::None,
+                    entry: EntryType::FileEntry("foo.txt".to_string()),
+                    tags: [].into_iter().map(str::to_string).collect(),
+                    icon: None,
+                    icon_type: IconType::custom("asdf.png"),
                 },
             ),
         ];
@@ -578,6 +682,8 @@ mod tests {
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
+            icon: None,
+            icon_type: IconType::file("foo bar"),
         };
 
         let entry = parse_entry(&toml);
@@ -602,6 +708,8 @@ mod tests {
                 .into_iter()
                 .map(str::to_string)
                 .collect(),
+            icon: None,
+            icon_type: IconType::file(dirname.to_string()),
         };
 
         let entry = parse_entry(&toml);
@@ -611,16 +719,14 @@ mod tests {
 
     #[test]
     fn keyword_search_results() {
-        let mut entry = StoreEntry {
-            name: "name:%s".to_string(),
-            description: None,
-            keyword: Keyword::RawKeyword(Default::default()),
-            entry: EntryType::FileEntry("file/%s".to_string()),
-            tags: Default::default(),
-        };
+        let mut entry = parse_entry(
+            r#"['name:%s']
+                location = "file/%s""#,
+        );
 
         let raw: Keyword = Keyword::RawKeyword(Default::default());
         let escaped: Keyword = Keyword::EscapedKeyword(Default::default());
+        let none: Keyword = Keyword::None;
 
         let tests = [
             (&raw, "a b", "name:b", "file/b"),
@@ -628,6 +734,7 @@ mod tests {
             (&raw, "a b c", "name:b c", "file/b c"),
             (&escaped, "a b", "name:b", "file/b"),
             (&escaped, "a b c", "name:b c", "file/b%20c"),
+            (&none, "a b", "name:%s", "file/%s"),
         ];
 
         for (entry_type, searchtext, formatted_name, formatted_selection) in tests {
@@ -653,14 +760,6 @@ mod tests {
 
     #[test]
     fn test_format() {
-        let entry = StoreEntry {
-            name: Default::default(),
-            description: None,
-            keyword: Keyword::RawKeyword(Default::default()),
-            entry: EntryType::FileEntry(Default::default()),
-            tags: Default::default(),
-        };
-
         let tests = [
             ("%s", "a", "a"),
             ("test %s", "a", "test a"),
@@ -672,7 +771,7 @@ mod tests {
         for test in tests {
             assert_eq!(
                 test.2,
-                entry.format(test.0, test.1),
+                format_param(test.0, test.1),
                 r#"format("{}", "{}") -> "{}" failed: "#,
                 test.0,
                 test.1,
@@ -702,5 +801,29 @@ mod tests {
                     .collect::<Vec<_>>()
             );
         }
+    }
+
+    #[test]
+    fn test_keyword_icontypes_are_parsed() {
+        let entry = parse_entry(
+            r#"['a']
+               location = 'http://example.com/%s'
+               keyword = 'a'
+               "#,
+        );
+
+        assert_eq!(
+            entry.icon_type,
+            IconType::url(url::Url::parse("http://example.com/").unwrap())
+        );
+
+        let entry = parse_entry(
+            r#"['a']
+               location = '%s.txt'
+               keyword = 'a'
+               "#,
+        );
+
+        assert_eq!(entry.icon_type, IconType::file(".txt"))
     }
 }
