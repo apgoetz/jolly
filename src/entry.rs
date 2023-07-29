@@ -149,7 +149,7 @@ impl StoreEntry {
             (None, None, None) => name.to_string(),
             _ => {
                 return Err(Error::CustomError(format!(
-                    "Error with {}: Only allow one of location/url/system",
+                    "Error with entry ['{}']: The entry should only specify one of location/url/system keys",
                     &name
                 )))
             }

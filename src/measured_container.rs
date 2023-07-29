@@ -11,21 +11,27 @@ use iced_native::{Clipboard, Element, Layout, Length, Point, Rectangle, Shell, W
 
 pub struct MeasuredContainer<'a, Message, Renderer, F>
 where
-    F: 'static + Copy + Fn(u32) -> Message,
+    F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     content: Element<'a, Message, Renderer>,
     msg_builder: F,
+    old_bounds: iced::Rectangle,
 }
 
 impl<'a, Message, Renderer, F> MeasuredContainer<'a, Message, Renderer, F>
 where
-    F: 'static + Copy + Fn(u32) -> Message,
+    F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     /// Creates a [`MeasuredContainer`] with the given content.
-    pub fn new(content: impl Into<Element<'a, Message, Renderer>>, callback: F) -> Self {
+    pub fn new(
+        content: impl Into<Element<'a, Message, Renderer>>,
+        callback: F,
+        old_bounds: Rectangle,
+    ) -> Self {
         MeasuredContainer {
             content: content.into(),
             msg_builder: callback,
+            old_bounds: old_bounds,
         }
     }
 }
@@ -38,7 +44,7 @@ impl<'a, Message, Renderer, F> Widget<Message, Renderer>
 where
     Renderer: iced_native::Renderer,
     Message: Clone,
-    F: 'static + Copy + Fn(u32) -> Message,
+    F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<State>()
@@ -92,16 +98,20 @@ where
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
-        let orig_width = layout.bounds().width;
-        let orig_height = layout.bounds().height.ceil() as u32;
+        let (orig_width, orig_height) = (self.old_bounds.width, self.old_bounds.height);
+
         let limits = iced_native::layout::Limits::new(
             iced_native::Size::ZERO,
             iced_native::Size::new(orig_width, f32::INFINITY),
         );
 
-        let new_height = self.layout(renderer, &limits).bounds().height.ceil() as u32;
-        if new_height != orig_height {
-            shell.publish((self.msg_builder)(new_height));
+        let bounds = self.layout(renderer, &limits).bounds();
+        let new_width = bounds.width;
+        let new_height = bounds.height;
+
+        if new_height != orig_height || new_width != orig_width {
+            shell.publish((self.msg_builder)(new_width, new_height));
+            self.old_bounds = bounds;
         }
 
         if let event::Status::Captured = self.content.as_widget_mut().on_event(
@@ -173,7 +183,7 @@ impl<'a, Message, Renderer, F> From<MeasuredContainer<'a, Message, Renderer, F>>
 where
     Message: 'a + Clone,
     Renderer: 'a + iced_native::Renderer,
-    F: 'static + Copy + Fn(u32) -> Message,
+    F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     fn from(area: MeasuredContainer<'a, Message, Renderer, F>) -> Element<'a, Message, Renderer> {
         Element::new(area)
