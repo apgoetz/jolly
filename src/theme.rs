@@ -286,6 +286,7 @@ pub enum ContainerStyle {
     #[default]
     Transparent,
     Selected,
+    Error,
 }
 
 impl container::StyleSheet for Theme {
@@ -304,6 +305,17 @@ impl container::StyleSheet for Theme {
                     border_radius: 5.0.into(),
                     border_width: 1.0,
                     border_color: iced_native::Color::TRANSPARENT,
+                }
+            }
+
+            ContainerStyle::Error => {
+                let bg_color: iced::Color = self.background_color.clone().into();
+                container::Appearance {
+                    text_color: Some(self.text_color.clone().into()),
+                    background: Some(bg_color.into()),
+                    border_radius: 5.0,
+                    border_width: 2.0,
+                    border_color: ui::Color::from_str("#D64541").into(),
                 }
             }
         }

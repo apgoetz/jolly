@@ -7,7 +7,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use iced::widget::TextInput;
+use iced::widget::{Text, TextInput};
 use iced::{executor, Application, Command, Element, Renderer};
 use iced_native::widget::text_input;
 use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
@@ -34,14 +34,14 @@ pub enum Message {
     SearchTextChanged(String),
     ExternalEvent(event::Event),
     EntrySelected(entry::EntryId),
-    HeightChanged(u32),
+    DimensionsChanged(f32, f32),
     StartedIconWorker(mpsc::Sender<icon::IconCommand>),
     IconReceived(icon::IconType, icon::Icon),
 }
 
 enum StoreLoadedState {
     Pending,
-    LoadFailed(String),
+    Finished(error::Error),
     LoadSucceeded(store::Store, String),
 }
 
@@ -59,17 +59,13 @@ pub struct Jolly {
     modifiers: keyboard::Modifiers,
     settings: settings::Settings,
     icache: icon::IconCache,
+    bounds: iced_native::Rectangle,
 }
 
 impl Jolly {
     fn move_to_err(&mut self, err: error::Error) -> Command<<Jolly as Application>::Message> {
-        self.store_state = StoreLoadedState::LoadFailed(err.to_string());
-        self.searchtext = String::new();
-        self.search_results = Default::default();
-        Command::single(command::Action::Window(window::Action::Resize {
-            width: self.settings.ui.width as _,
-            height: self.settings.ui.search.starting_height(),
-        }))
+        self.store_state = StoreLoadedState::Finished(err);
+        Command::none()
     }
 
     fn min_height_command(&self) -> Command<<Jolly as Application>::Message> {
@@ -111,15 +107,17 @@ impl Jolly {
 }
 
 impl Application for Jolly {
-    type Message = Message;
     type Executor = executor::Default;
-    type Flags = config::Config;
+    type Message = Message;
     type Theme = theme::Theme;
+    type Flags = config::Config;
 
     fn new(config: Self::Flags) -> (Self, Command<Self::Message>) {
         let mut jolly = Self::default();
 
         jolly.settings = config.settings;
+
+        jolly.bounds.width = jolly.settings.ui.width as f32;
 
         jolly.store_state = match config.store {
             Ok(store) => {
@@ -127,8 +125,8 @@ impl Application for Jolly {
                 StoreLoadedState::LoadSucceeded(store, msg)
             }
             Err(e) => {
-                println!("{:?}", e);
-                StoreLoadedState::LoadFailed(e.to_string().replace("\n", "  "))
+                eprintln!("{e}");
+                StoreLoadedState::Finished(e)
             }
         };
 
@@ -166,6 +164,23 @@ impl Application for Jolly {
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
                 return iced::window::close();
             }
+
+            // handle height change even if UI has failed to load
+            Message::DimensionsChanged(width, height) => {
+                let width = if matches!(self.store_state, StoreLoadedState::Finished(_)) {
+                    width
+                } else {
+                    self.settings.ui.width as _
+                };
+
+                self.bounds.width = width;
+                self.bounds.height = height;
+
+                return Command::single(command::Action::Window(window::Action::Resize {
+                    width: width.ceil() as u32,
+                    height: height.ceil() as u32,
+                }));
+            }
             _ => (), // dont care at this point about other messages
         };
 
@@ -177,12 +192,6 @@ impl Application for Jolly {
 
         // if we are here, we are loaded and we dont want to quit
         match message {
-            Message::HeightChanged(height) => {
-                Command::single(command::Action::Window(window::Action::Resize {
-                    width: self.settings.ui.width as _,
-                    height: height,
-                }))
-            }
             Message::SearchTextChanged(txt) => {
                 self.searchtext = txt;
 
@@ -258,44 +267,62 @@ impl Application for Jolly {
         }
     }
 
-    fn subscription(&self) -> iced::Subscription<Message> {
-        let channel = subscription::run(icon::icon_worker);
-        let external = subscription::events().map(Message::ExternalEvent);
-        subscription::Subscription::batch([channel, external].into_iter())
-    }
-
     fn view(&self) -> Element<'_, Message, Renderer<Self::Theme>> {
         use StoreLoadedState::*;
-        let default_txt = match &self.store_state {
-            Pending => "Loading Bookmarks... ",
-            LoadFailed(msg) => msg,
-            LoadSucceeded(_, msg) => msg,
+
+        let ui: Element<_, Renderer<Self::Theme>> = match &self.store_state {
+            LoadSucceeded(store, msg) => widget::column::Column::new()
+                .push(
+                    TextInput::new(msg, &self.searchtext)
+                        .on_input(Message::SearchTextChanged)
+                        .size(self.settings.ui.search.common.text_size())
+                        .id(TEXT_INPUT_ID.clone())
+                        .padding(self.settings.ui.search.padding),
+                )
+                .push(
+                    self.search_results
+                        .view(&self.searchtext, store, Message::EntrySelected),
+                )
+                .into(),
+            Pending => Text::new("Loading Bookmarks...").into(),
+            Finished(err) => {
+                let errtext = Text::new(err.to_string());
+                let style;
+                let children;
+                if let error::Error::FinalMessage(_) = err {
+                    style = theme::ContainerStyle::Transparent;
+                    children = vec![errtext.into()];
+                } else {
+                    style = theme::ContainerStyle::Error;
+                    let title = Text::new("Oops, Jolly has encountered an Error...")
+                        .style(iced::theme::Text::Color(
+                            ui::Color::from_str("#D64541").into(),
+                        ))
+                        .size(2 * self.settings.ui.search.common.text_size());
+                    children = vec![title.into(), errtext.into()];
+                }
+
+                let col = widget::column::Column::with_children(children).spacing(5);
+
+                iced::widget::container::Container::new(col)
+                    .style(style)
+                    .padding(5)
+                    .width(iced_native::Length::Fill)
+                    .into()
+            }
         };
 
-        let mut column = widget::column::Column::new();
-        column = column.push(
-            TextInput::new(default_txt, &self.searchtext)
-                .on_input(Message::SearchTextChanged)
-                .size(self.settings.ui.search.common.text_size())
-                .id(TEXT_INPUT_ID.clone())
-                .padding(self.settings.ui.search.padding),
-        );
-
-        // we can only continue if the store is loaded
-        let store = match &self.store_state {
-            StoreLoadedState::LoadSucceeded(s, _) => s,
-            _ => return column.into(),
-        };
-
-        column = column.push(self.search_results.view(
-            &self.searchtext,
-            store,
-            Message::EntrySelected,
-        ));
-        measured_container::MeasuredContainer::new(column, Message::HeightChanged).into()
+        measured_container::MeasuredContainer::new(ui, Message::DimensionsChanged, self.bounds)
+            .into()
     }
 
     fn theme(&self) -> Self::Theme {
         self.settings.ui.theme.clone()
+    }
+
+    fn subscription(&self) -> iced::Subscription<Message> {
+        let channel = subscription::run(icon::icon_worker);
+        let external = subscription::events().map(Message::ExternalEvent);
+        subscription::Subscription::batch([channel, external].into_iter())
     }
 }

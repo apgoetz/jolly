@@ -19,19 +19,23 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Final message is used when we want to say something, but it
-        // isn't an error, so we don't say error
-        if !matches!(self, Error::FinalMessage(_)) {
-            write!(f, "Error: ")?;
-        }
-
         match self {
-            Error::StoreError(e) => e.fmt(f),
+            Error::StoreError(e) => {
+                write!(f, "while parsing jolly.toml: \n")?;
+                e.fmt(f)
+            }
             Error::IcedError(e) => e.fmt(f),
-            Error::IoError(e) => e.fmt(f),
-            Error::ParseError(e) => e.fmt(f),
+            Error::IoError(e) => {
+                write!(f, "could not access jolly.toml: \n")?;
+                e.fmt(f)
+            }
+            Error::ParseError(e) => {
+                write!(f, "while parsing jolly.toml: \n")?;
+                e.fmt(f)
+            }
             Error::PlatformError(e) => e.fmt(f),
             Error::CustomError(s) => f.write_str(s),
+            // not really an error, used to represent final message in UI
             Error::FinalMessage(s) => f.write_str(s),
         }
     }
