@@ -254,7 +254,7 @@ pub fn default_icon(is: &IconSettings) -> Icon {
 }
 
 use crate::Message;
-use iced_native::futures::channel::mpsc;
+use iced::futures::channel::mpsc;
 
 // represents an icon cache that can look up icons in a deferred worker thread
 #[derive(Default)]
@@ -305,8 +305,6 @@ pub enum IconCommand {
     LoadIcon(IconType),
 }
 
-//create stream that satisfies the needs of iced_native::subscription::run
-// TODO: add tests
 pub fn icon_worker() -> mpsc::Receiver<Message> {
     // todo: fix magic for channel size
     let (mut output, sub_stream) = mpsc::channel(100);
@@ -401,13 +399,13 @@ mod tests {
 
     fn iconlike(icon: Icon, err_msg: &str) {
         match icon.data() {
-            iced_native::image::Data::Path(p) => {
+            iced::advanced::image::Data::Path(p) => {
                 assert!(p.exists())
             }
-            iced_native::image::Data::Bytes(bytes) => {
+            iced::advanced::image::Data::Bytes(bytes) => {
                 assert!(bytes.len() > 0)
             }
-            iced_native::image::Data::Rgba {
+            iced::advanced::image::Data::Rgba {
                 width,
                 height,
                 pixels,
@@ -594,7 +592,10 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(pbm_icon.data(), iced_native::image::Data::Path(_)));
+        assert!(matches!(
+            pbm_icon.data(),
+            iced::advanced::image::Data::Path(_)
+        ));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
@@ -605,7 +606,7 @@ mod tests {
         let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
             svg_icon.data(),
-            iced_native::image::Data::Rgba {
+            iced::advanced::image::Data::Rgba {
                 width: w,
                 height: h,
                 pixels: _

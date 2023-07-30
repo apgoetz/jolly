@@ -320,13 +320,13 @@ impl StoreEntry {
         settings: &ui::UISettings,
         selected: bool,
         my_id: EntryId,
-    ) -> iced_native::Element<'a, Message, Renderer>
+    ) -> iced::Element<'a, Message, Renderer>
     where
         F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: iced_native::renderer::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: iced_native::text::Renderer,
-        Renderer: iced_native::image::Renderer<Handle = iced::widget::image::Handle>,
+        Renderer: iced::advanced::Renderer<Theme = theme::Theme> + 'a,
+        Renderer: iced::advanced::text::Renderer,
+        Renderer: iced::advanced::image::Renderer<Handle = iced::widget::image::Handle>,
     {
         let text_color = if selected {
             settings.theme.selected_text_color.clone()
@@ -340,13 +340,13 @@ impl StoreEntry {
             theme::ButtonStyle::Transparent
         };
 
-        let text_color: iced_native::Color = text_color.into();
+        let text_color: iced::Color = text_color.into();
 
         let title_text = iced::widget::text::Text::new(self.format_name(searchtext))
             .size(settings.entry.common.text_size())
-            .style(iced_native::Color::from(text_color))
-            .horizontal_alignment(iced_native::alignment::Horizontal::Left)
-            .vertical_alignment(iced_native::alignment::Vertical::Center);
+            .style(text_color)
+            .horizontal_alignment(iced::alignment::Horizontal::Left)
+            .vertical_alignment(iced::alignment::Vertical::Center);
 
         let description = match &self.description {
             Some(desc) => {
@@ -357,13 +357,13 @@ impl StoreEntry {
                     .map(|paragraph| {
                         iced::widget::text::Text::new(paragraph)
                             .size(settings.entry.description_size)
-                            .style(iced_native::Color::from(text_color))
-                            .horizontal_alignment(iced_native::alignment::Horizontal::Left)
-                            .vertical_alignment(iced_native::alignment::Vertical::Center)
+                            .style(iced::Color::from(text_color))
+                            .horizontal_alignment(iced::alignment::Horizontal::Left)
+                            .vertical_alignment(iced::alignment::Vertical::Center)
                             .into()
                     })
                     .collect();
-                iced::widget::Column::with_children(paragraphs).width(iced_native::Length::Fill)
+                iced::widget::Column::with_children(paragraphs).width(iced::Length::Fill)
             }
             None => iced::widget::Column::new(),
         };
@@ -383,12 +383,12 @@ impl StoreEntry {
                 (settings.entry.common.text_size() + 4) as f32,
             ))
             .spacing(2)
-            .align_items(iced_native::Alignment::Center)
+            .align_items(iced::Alignment::Center)
             .push(icon)
             .push(title_text);
 
         let column = iced::widget::Column::new()
-            .width(iced_native::Length::Fill)
+            .width(iced::Length::Fill)
             .push(icon_row)
             .push(description);
 
@@ -399,9 +399,9 @@ impl StoreEntry {
         let button = iced::widget::button::Button::new(column)
             .on_press(message_func(my_id))
             .style(button_style)
-            .width(iced_native::Length::Fill);
+            .width(iced::Length::Fill);
 
-        let element: iced_native::Element<'_, _, _> = button.into();
+        let element: iced::Element<'_, _, _> = button.into();
         element
     }
 

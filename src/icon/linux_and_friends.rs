@@ -326,7 +326,7 @@ mod tests {
         // expect pixel data from the icon
         assert!(matches!(
             icon.data(),
-            iced_native::image::Data::Rgba {
+            iced::advanced::image::Data::Rgba {
                 width: _,
                 height: _,
                 pixels: _

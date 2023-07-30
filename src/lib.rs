@@ -7,10 +7,10 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
-use iced::{executor, Application, Command, Element, Renderer};
-use iced_native::widget::text_input;
-use iced_native::{clipboard, command, event, keyboard, subscription, widget, window};
+use iced::{clipboard, event, keyboard, subscription, widget, window};
+use iced::{executor, Application, Command, Element, Length, Renderer, Size};
 use lazy_static;
 use std::sync::mpsc;
 
@@ -39,6 +39,7 @@ pub enum Message {
     IconReceived(icon::IconType, icon::Icon),
 }
 
+#[derive(Debug)]
 enum StoreLoadedState {
     Pending,
     Finished(error::Error),
@@ -59,7 +60,10 @@ pub struct Jolly {
     modifiers: keyboard::Modifiers,
     settings: settings::Settings,
     icache: icon::IconCache,
-    bounds: iced_native::Rectangle,
+    bounds: iced::Rectangle,
+    focused_once: bool, // for some reason gnome defocusses
+                        // the jolly window when launching, so we have to ignore
+                        // defocus events until we receive a focus event.
 }
 
 impl Jolly {
@@ -69,10 +73,10 @@ impl Jolly {
     }
 
     fn min_height_command(&self) -> Command<<Jolly as Application>::Message> {
-        Command::single(command::Action::Window(window::Action::Resize {
-            width: self.settings.ui.width as _,
-            height: self.settings.ui.search.starting_height(),
-        }))
+        window::resize(Size::new(
+            self.settings.ui.width as _,
+            self.settings.ui.search.starting_height(),
+        ))
     }
 
     fn handle_selection(&mut self, id: entry::EntryId) -> Command<<Jolly as Application>::Message> {
@@ -90,7 +94,7 @@ impl Jolly {
             let result = entry.format_selection(&self.searchtext);
             let msg = format!("copied to clipboard: {}", &result);
             let cmds = [
-                Command::single(command::Action::Clipboard(clipboard::Action::Write(result))),
+                clipboard::write(result),
                 self.move_to_err(error::Error::FinalMessage(msg)),
             ];
             Command::batch(cmds)
@@ -129,16 +133,13 @@ impl Application for Jolly {
                 StoreLoadedState::Finished(e)
             }
         };
-
         (
             jolly,
             Command::batch([
-                Command::single(command::Action::Window(window::Action::ChangeMode(
-                    window::Mode::Windowed,
-                ))),
+                window::change_mode(window::Mode::Windowed),
                 text_input::focus(TEXT_INPUT_ID.clone()),
                 // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
-                Command::single(command::Action::Window(window::Action::GainFocus)),
+                window::gain_focus(),
             ]),
         )
     }
@@ -161,7 +162,14 @@ impl Application for Jolly {
                     }
                 }
             }
-            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Unfocused => {
+            Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Focused => {
+                self.focused_once = true;
+                return Command::none();
+            }
+
+            Message::ExternalEvent(event::Event::Window(w))
+                if w == window::Event::Unfocused && self.focused_once =>
+            {
                 return iced::window::close();
             }
 
@@ -176,10 +184,7 @@ impl Application for Jolly {
                 self.bounds.width = width;
                 self.bounds.height = height;
 
-                return Command::single(command::Action::Window(window::Action::Resize {
-                    width: width.ceil() as u32,
-                    height: height.ceil() as u32,
-                }));
+                return window::resize(Size::new(width.ceil() as u32, height.ceil() as u32));
             }
             _ => (), // dont care at this point about other messages
         };
@@ -271,7 +276,7 @@ impl Application for Jolly {
         use StoreLoadedState::*;
 
         let ui: Element<_, Renderer<Self::Theme>> = match &self.store_state {
-            LoadSucceeded(store, msg) => widget::column::Column::new()
+            LoadSucceeded(store, msg) => widget::Column::new()
                 .push(
                     TextInput::new(msg, &self.searchtext)
                         .on_input(Message::SearchTextChanged)
@@ -302,12 +307,12 @@ impl Application for Jolly {
                     children = vec![title.into(), errtext.into()];
                 }
 
-                let col = widget::column::Column::with_children(children).spacing(5);
+                let col = widget::Column::with_children(children).spacing(5);
 
                 iced::widget::container::Container::new(col)
                     .style(style)
                     .padding(5)
-                    .width(iced_native::Length::Fill)
+                    .width(Length::Fill)
                     .into()
             }
         };

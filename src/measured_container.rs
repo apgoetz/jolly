@@ -1,13 +1,13 @@
 //! Container that determines the min size of its content, and returns
 //! it to the application to allow it to adjust window size
 
-use iced_native::event::{self, Event};
-use iced_native::layout;
-use iced_native::mouse;
-use iced_native::overlay;
-use iced_native::renderer;
-use iced_native::widget::{tree, Operation, Tree};
-use iced_native::{Clipboard, Element, Layout, Length, Point, Rectangle, Shell, Widget};
+use iced::event;
+
+use iced::advanced::overlay;
+use iced::advanced::widget::{tree, Operation, Tree};
+use iced::advanced::{layout, renderer, Clipboard, Layout, Shell, Widget};
+use iced::mouse;
+use iced::{Element, Event, Length, Rectangle, Size};
 
 pub struct MeasuredContainer<'a, Message, Renderer, F>
 where
@@ -42,7 +42,7 @@ struct State; // no state
 impl<'a, Message, Renderer, F> Widget<Message, Renderer>
     for MeasuredContainer<'a, Message, Renderer, F>
 where
-    Renderer: iced_native::Renderer,
+    Renderer: iced::advanced::Renderer,
     Message: Clone,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
@@ -93,17 +93,15 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor_position: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
+        viewport: &Rectangle<f32>,
     ) -> event::Status {
         let (orig_width, orig_height) = (self.old_bounds.width, self.old_bounds.height);
 
-        let limits = iced_native::layout::Limits::new(
-            iced_native::Size::ZERO,
-            iced_native::Size::new(orig_width, f32::INFINITY),
-        );
+        let limits = layout::Limits::new(Size::ZERO, Size::new(orig_width, f32::INFINITY));
 
         let bounds = self.layout(renderer, &limits).bounds();
         let new_width = bounds.width;
@@ -122,6 +120,7 @@ where
             renderer,
             clipboard,
             shell,
+            viewport,
         ) {
             return event::Status::Captured;
         }
@@ -132,7 +131,7 @@ where
         &self,
         tree: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor_position: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
@@ -152,7 +151,7 @@ where
         theme: &Renderer::Theme,
         renderer_style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor_position: mouse::Cursor,
         viewport: &Rectangle,
     ) {
         self.content.as_widget().draw(
@@ -182,7 +181,7 @@ impl<'a, Message, Renderer, F> From<MeasuredContainer<'a, Message, Renderer, F>>
     for Element<'a, Message, Renderer>
 where
     Message: 'a + Clone,
-    Renderer: 'a + iced_native::Renderer,
+    Renderer: 'a + iced::advanced::Renderer,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     fn from(area: MeasuredContainer<'a, Message, Renderer, F>) -> Element<'a, Message, Renderer> {
