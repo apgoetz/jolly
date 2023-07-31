@@ -4,6 +4,7 @@ use std::error;
 use std::fmt;
 use std::ops::Deref;
 
+use iced::advanced;
 use serde::Deserialize;
 use url::Url;
 
@@ -324,9 +325,9 @@ impl StoreEntry {
     where
         F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: iced::advanced::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: iced::advanced::text::Renderer,
-        Renderer: iced::advanced::image::Renderer<Handle = iced::widget::image::Handle>,
+        Renderer: advanced::Renderer<Theme = theme::Theme> + 'a,
+        Renderer: advanced::text::Renderer,
+        Renderer: advanced::image::Renderer<Handle = iced::widget::image::Handle>,
     {
         let text_color = if selected {
             settings.theme.selected_text_color.clone()

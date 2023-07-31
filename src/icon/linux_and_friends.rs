@@ -2,9 +2,8 @@
 // for now, this covers linux and the bsds
 use super::{icon_from_svg, Context, Icon, IconError, DEFAULT_ICON_SIZE};
 
-use std::io::Read;
-
 use serde;
+use std::io::Read;
 use xdg_mime::SharedMimeInfo;
 
 // set in build script
@@ -198,6 +197,7 @@ mod tests {
     use tempfile;
 
     use super::*;
+    use iced::advanced::image::Data;
 
     // helper struct to allow building mock xdg data for testing
     struct MockXdg(tempfile::TempDir);
@@ -326,7 +326,7 @@ mod tests {
         // expect pixel data from the icon
         assert!(matches!(
             icon.data(),
-            iced::advanced::image::Data::Rgba {
+            Data::Rgba {
                 width: _,
                 height: _,
                 pixels: _

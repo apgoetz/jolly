@@ -3,8 +3,8 @@
 
 use iced::event;
 
-use iced::advanced::overlay;
 use iced::advanced::widget::{tree, Operation, Tree};
+use iced::advanced::{self, overlay};
 use iced::advanced::{layout, renderer, Clipboard, Layout, Shell, Widget};
 use iced::mouse;
 use iced::{Element, Event, Length, Rectangle, Size};
@@ -42,7 +42,7 @@ struct State; // no state
 impl<'a, Message, Renderer, F> Widget<Message, Renderer>
     for MeasuredContainer<'a, Message, Renderer, F>
 where
-    Renderer: iced::advanced::Renderer,
+    Renderer: advanced::Renderer,
     Message: Clone,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
@@ -181,7 +181,7 @@ impl<'a, Message, Renderer, F> From<MeasuredContainer<'a, Message, Renderer, F>>
     for Element<'a, Message, Renderer>
 where
     Message: 'a + Clone,
-    Renderer: 'a + iced::advanced::Renderer,
+    Renderer: 'a + advanced::Renderer,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     fn from(area: MeasuredContainer<'a, Message, Renderer, F>) -> Element<'a, Message, Renderer> {

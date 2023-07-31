@@ -1,4 +1,4 @@
-use iced::{keyboard, widget};
+use iced::{advanced, keyboard, widget};
 
 use crate::entry;
 use crate::store;
@@ -81,15 +81,15 @@ impl SearchResults {
     where
         F: 'static + Copy + Fn(entry::EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: iced::advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: iced::advanced::text::Renderer,
-        Renderer: iced::advanced::image::Renderer<Handle = iced::widget::image::Handle>,
+        Renderer: advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
+        Renderer: advanced::text::Renderer,
+        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
     {
         // if we dont have any entries, return an empty search results
         // (if we dont do this, the empty column will still show its
         // padding
         if self.entries.is_empty() {
-            return iced::widget::Space::with_height(0).into();
+            return widget::Space::with_height(0).into();
         }
 
         let mut column = widget::Column::new().padding(PADDING);

@@ -30,9 +30,9 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
-use url::Url;
 
 use std::error;
+use url::Url;
 
 mod linux_and_friends;
 mod macos;
@@ -385,6 +385,7 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 #[cfg(test)]
 mod tests {
     use super::{Icon, IconError, IconInterface, IconSettings};
+    use iced::advanced::image;
 
     pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
         use std::collections::hash_map::DefaultHasher;
@@ -399,13 +400,13 @@ mod tests {
 
     fn iconlike(icon: Icon, err_msg: &str) {
         match icon.data() {
-            iced::advanced::image::Data::Path(p) => {
+            image::Data::Path(p) => {
                 assert!(p.exists())
             }
-            iced::advanced::image::Data::Bytes(bytes) => {
+            image::Data::Bytes(bytes) => {
                 assert!(bytes.len() > 0)
             }
-            iced::advanced::image::Data::Rgba {
+            image::Data::Rgba {
                 width,
                 height,
                 pixels,
@@ -592,10 +593,7 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(
-            pbm_icon.data(),
-            iced::advanced::image::Data::Path(_)
-        ));
+        assert!(matches!(pbm_icon.data(), image::Data::Path(_)));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
@@ -606,7 +604,7 @@ mod tests {
         let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
             svg_icon.data(),
-            iced::advanced::image::Data::Rgba {
+            image::Data::Rgba {
                 width: w,
                 height: h,
                 pixels: _
