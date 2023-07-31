@@ -347,7 +347,8 @@ impl StoreEntry {
             .size(settings.entry.common.text_size())
             .style(text_color)
             .horizontal_alignment(iced::alignment::Horizontal::Left)
-            .vertical_alignment(iced::alignment::Vertical::Center);
+            .vertical_alignment(iced::alignment::Vertical::Center)
+            .shaping(iced::widget::text::Shaping::Advanced);
 
         let description = match &self.description {
             Some(desc) => {
@@ -361,6 +362,7 @@ impl StoreEntry {
                             .style(iced::Color::from(text_color))
                             .horizontal_alignment(iced::alignment::Horizontal::Left)
                             .vertical_alignment(iced::alignment::Vertical::Center)
+                            .shaping(iced::widget::text::Shaping::Advanced)
                             .into()
                     })
                     .collect();
