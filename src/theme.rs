@@ -208,7 +208,7 @@ impl menu::StyleSheet for Theme {
             text_color: palette.background.base.text,
             background: palette.background.weak.color.into(),
             border_width: 1.0,
-            border_radius: 0.0,
+            border_radius: 0.0.into(),
             border_color: palette.background.strong.color,
             selected_text_color: self.selected_text_color.clone().into(),
             selected_background: palette.primary.base.color.into(),
@@ -261,9 +261,9 @@ impl button::StyleSheet for Theme {
                 shadow_offset: iced::Vector::default(),
                 text_color: self.text_color.clone().into(),
                 background: None,
-                border_radius: 0.0,
+                border_radius: 0.0.into(),
                 border_width: 0.0,
-                border_color: iced_native::Color::TRANSPARENT,
+                border_color: iced::Color::TRANSPARENT,
             },
 
             ButtonStyle::Selected => {
@@ -274,7 +274,7 @@ impl button::StyleSheet for Theme {
                     background: Some(accent_color.into()),
                     border_radius: 5.0.into(),
                     border_width: 1.0,
-                    border_color: iced_native::Color::TRANSPARENT,
+                    border_color: iced::Color::TRANSPARENT,
                 }
             }
         }
@@ -293,9 +293,7 @@ impl container::StyleSheet for Theme {
     type Style = ContainerStyle;
     fn appearance(&self, style: &Self::Style) -> container::Appearance {
         match style {
-            ContainerStyle::Transparent => {
-                iced_native::Theme::default().appearance(&Default::default())
-            }
+            ContainerStyle::Transparent => iced::Theme::default().appearance(&Default::default()),
 
             ContainerStyle::Selected => {
                 let accent_color: iced::Color = self.accent_color.clone().into();
@@ -304,7 +302,7 @@ impl container::StyleSheet for Theme {
                     background: Some(accent_color.into()),
                     border_radius: 5.0.into(),
                     border_width: 1.0,
-                    border_color: iced_native::Color::TRANSPARENT,
+                    border_color: iced::Color::TRANSPARENT,
                 }
             }
 
@@ -313,7 +311,7 @@ impl container::StyleSheet for Theme {
                 container::Appearance {
                     text_color: Some(self.text_color.clone().into()),
                     background: Some(bg_color.into()),
-                    border_radius: 5.0,
+                    border_radius: 5.0.into(),
                     border_width: 2.0,
                     border_color: ui::Color::from_str("#D64541").into(),
                 }
@@ -346,7 +344,7 @@ impl text_input::StyleSheet for Theme {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
+            border_radius: 2.0.into(),
             border_width: 1.0,
             border_color: palette.background.strong.color,
             icon_color: Default::default(),
@@ -358,7 +356,7 @@ impl text_input::StyleSheet for Theme {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
+            border_radius: 2.0.into(),
             border_width: 1.0,
             border_color: palette.background.base.text,
             icon_color: Default::default(),
@@ -370,7 +368,7 @@ impl text_input::StyleSheet for Theme {
 
         text_input::Appearance {
             background: palette.background.base.color.into(),
-            border_radius: 2.0,
+            border_radius: 2.0.into(),
             border_width: 1.0,
             border_color: palette.primary.base.color,
             icon_color: Default::default(),

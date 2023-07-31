@@ -1,4 +1,4 @@
-use iced_native::{keyboard, widget};
+use iced::{advanced, keyboard, widget};
 
 use crate::entry;
 use crate::store;
@@ -77,22 +77,22 @@ impl SearchResults {
         searchtext: &str,
         store: &'a store::Store,
         f: F,
-    ) -> iced_native::Element<'a, Message, Renderer>
+    ) -> iced::Element<'a, Message, Renderer>
     where
         F: 'static + Copy + Fn(entry::EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: iced_native::renderer::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: iced_native::text::Renderer,
-        Renderer: iced_native::image::Renderer<Handle = iced::widget::image::Handle>,
+        Renderer: advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
+        Renderer: advanced::text::Renderer,
+        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
     {
         // if we dont have any entries, return an empty search results
         // (if we dont do this, the empty column will still show its
         // padding
         if self.entries.is_empty() {
-            return iced::widget::Space::with_height(0).into();
+            return widget::Space::with_height(0).into();
         }
 
-        let mut column = widget::column::Column::new().padding(PADDING);
+        let mut column = widget::Column::new().padding(PADDING);
         for (i, e) in self.entries.iter().enumerate() {
             let entry = store.get(*e);
             // unwrap will never panic since UI_MAX_RESULTS is const
@@ -101,7 +101,7 @@ impl SearchResults {
 
             column = column.push(entry_widget);
         }
-        let element: iced_native::Element<'_, _, _> = column.into();
+        let element: iced::Element<'_, _, _> = column.into();
         element
     }
 

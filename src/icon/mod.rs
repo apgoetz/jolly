@@ -30,9 +30,9 @@
 
 use std::collections::HashMap;
 use std::hash::Hash;
-use url::Url;
 
 use std::error;
+use url::Url;
 
 mod linux_and_friends;
 mod macos;
@@ -254,7 +254,7 @@ pub fn default_icon(is: &IconSettings) -> Icon {
 }
 
 use crate::Message;
-use iced_native::futures::channel::mpsc;
+use iced::futures::channel::mpsc;
 
 // represents an icon cache that can look up icons in a deferred worker thread
 #[derive(Default)]
@@ -305,8 +305,6 @@ pub enum IconCommand {
     LoadIcon(IconType),
 }
 
-//create stream that satisfies the needs of iced_native::subscription::run
-// TODO: add tests
 pub fn icon_worker() -> mpsc::Receiver<Message> {
     // todo: fix magic for channel size
     let (mut output, sub_stream) = mpsc::channel(100);
@@ -387,6 +385,7 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 #[cfg(test)]
 mod tests {
     use super::{Icon, IconError, IconInterface, IconSettings};
+    use iced::advanced::image;
 
     pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
         use std::collections::hash_map::DefaultHasher;
@@ -401,13 +400,13 @@ mod tests {
 
     fn iconlike(icon: Icon, err_msg: &str) {
         match icon.data() {
-            iced_native::image::Data::Path(p) => {
+            image::Data::Path(p) => {
                 assert!(p.exists())
             }
-            iced_native::image::Data::Bytes(bytes) => {
+            image::Data::Bytes(bytes) => {
                 assert!(bytes.len() > 0)
             }
-            iced_native::image::Data::Rgba {
+            image::Data::Rgba {
                 width,
                 height,
                 pixels,
@@ -594,7 +593,7 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(pbm_icon.data(), iced_native::image::Data::Path(_)));
+        assert!(matches!(pbm_icon.data(), image::Data::Path(_)));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
@@ -605,7 +604,7 @@ mod tests {
         let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
             svg_icon.data(),
-            iced_native::image::Data::Rgba {
+            image::Data::Rgba {
                 width: w,
                 height: h,
                 pixels: _
