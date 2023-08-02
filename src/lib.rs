@@ -72,13 +72,6 @@ impl Jolly {
         Command::none()
     }
 
-    fn min_height_command(&self) -> Command<<Jolly as Application>::Message> {
-        window::resize(Size::new(
-            self.settings.ui.width as _,
-            self.settings.ui.search.starting_height(),
-        ))
-    }
-
     fn handle_selection(&mut self, id: entry::EntryId) -> Command<<Jolly as Application>::Message> {
         // we can only continue if the store is loaded
         let store = match &self.store_state {
@@ -208,16 +201,8 @@ impl Application for Jolly {
                 // load icons of whatever matches are being displayed
                 store.load_icons(new_results.entries(), &mut self.icache);
 
-                if new_results != self.search_results {
-                    self.search_results = new_results;
-                    // since the search text changed we need to
-                    // recalculate window height for the new results. So
-                    // resize the window to hide the results until the new
-                    // height is available
-                    return self.min_height_command();
-                } else if self.searchtext.is_empty() {
-                    return self.min_height_command();
-                }
+                self.search_results = new_results;
+
                 Command::none()
             }
             Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
