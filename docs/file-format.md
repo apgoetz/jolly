@@ -18,22 +18,28 @@ description = "use your system's default program to open this jolly database"
 
 ['Jolly Quick Start Guide']
 location = 'https://github.com/apgoetz/jolly/tree/main/docs'
+desc = "Open the Jolly manual in your web browser"
 
-['Search DuckDuckGo: %s']
-url = 'https://duckduckgo.com/?q=%s'
-keyword = 'ddg'
-escape = true
-
+['(W)ikipedia: %s']
+url = 'https://en.wikipedia.org/w/index.php?title=Special:Search&search=%s'
+keyword = 'w'
+desc = "Search Wikipedia"
 
 ['Open Calculator']
 system = 'calc.exe'
 tags = ['math', 'work']
-desc = """Open your system's calculator app. This example uses Window's
+desc = """Open the calculator app. This example uses Window's
 calc.exe, but for other OS's you may need change this entry.
 
 For example, on Debian, you can use 'gnome-calculator' and on MacOs you can use
 '/System/Applications/Calculator.app/Contents/MacOS/Calculator'
 """
+
+['Send email to important recipient']
+location = 'mailto:noreply@example.com'
+tags = ['email']
+desc = """Jolly entries don't just have to be web urls. 
+Any protocol handler supported by your OS can be an entry. """
 ```
 
 ## Jolly Entries
@@ -45,6 +51,8 @@ whereas the *entry target* represents the description of how jolly can access th
 entry.
 
 Each entry can also have an optional [description](#desc) that provides more detailed information about the entry.
+
+Each entry can also have an optional [icon](#icon) field, which allows overriding the icon image to use for that entry. 
 
 Jolly treats each table in the TOML file as its own entry, and the key of the table is treated as its *name*. 
 
@@ -60,6 +68,9 @@ location = 'jolly.toml'
 The *name* of the entry would be "Edit Jolly Configuration". This is
 the text that would be displayed to the user if the entry is selected.
 
+The *entry target* in this case would be of type `location`, and points to a local file called `jolly.toml`. 
+
+
 **Important Note** *It is best practice to surround the entry *name*
 in single quotes in your toml file. This is because if your entry name
 contains a dot (.) the TOML parser will interpret the entry as a
@@ -69,7 +80,6 @@ hierarchical table, which will mess up Jolly's parsing*
 table called `config` and are described in [config.md](config.md)
 
 
-The *entry target* in this case would be of type `location`, and points to a local file called `jolly.toml`. 
 
 ## <a name="tags"></a> Tags
 
@@ -119,10 +129,44 @@ render your description as a unformatted text block (with hard newlines).
 Lastly, *description* fields do not support using `%s` as a keyword
 parameter, unlike the title field. 
 
+## <a name="icon"></a> Icon
+
+Jolly entries are displayed with an icon image next to them. The icon
+that is displayed is queried with OS-specific APIs, and should be the
+same icon that is displayed in the platform's file explorer. If you
+would like to override the icon that is chosen to be displayed, you
+can use the `icon` field to specify a path to an image to use for that
+icon. Jolly uses the [image](https://crates.io/crates/image) crate to
+load images, which means that only image formats supported by that
+crate can be used as icons with jolly. Additionally, Jolly is built
+with SVG support (handled separately). This means that the image type
+must be one of the following:
+
+| Support Image Type | Recognized File Extensions |
+|--------------------|----------------------------|
+| PNG                | .png                       |
+| JPEG               | .jpg, .jpeg                |
+| GIF                | .gif                       |
+| WEBP               | .webp                      |
+| Netpbm             | .pbm, .pam, .ppm, .pgm     |
+| TIFF               | .tiff, .tif                |
+| TGA                | .tga                       |
+| DDS                | .dds                       |
+| Bitmap             | .bmp                       |
+| Icon               | .ico                       |
+| HDR                | .hdr                       |
+| OpenEXR            | .exr                       |
+| Farbfeld           | .ff                        |
+| QOI                | .qoi                       |
+| SVG                | .svg                       |
+
+
 ## Jolly Entry Target Types
 
 
-Jolly supports the following types of *entry targets*. to specify an *entry target* type, create a key with the corresponding name in the entry table.
+Jolly supports the following types of *entry targets*. to specify an
+*entry target* type, create a key with the corresponding name in the
+entry table.
 
 + `location`
 + `system`
