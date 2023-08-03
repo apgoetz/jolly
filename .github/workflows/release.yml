@@ -56,7 +56,8 @@ jobs:
 
         cp {README.md,LICENSE-APACHE,LICENSE-MIT,CHANGELOG.md} "$staging/"
         cp -r docs "$staging"
-
+        cp docs/jolly.toml "$staging/"
+        
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
           cp "target/release/jolly.exe" "$staging/"
           7z a "$staging.zip" "$staging"
