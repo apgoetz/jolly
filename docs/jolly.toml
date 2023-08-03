@@ -5,19 +5,25 @@ description = "use your system's default program to open this jolly database"
 
 ['Jolly Quick Start Guide']
 location = 'https://github.com/apgoetz/jolly/tree/main/docs'
+desc = "Open the Jolly manual in your web browser"
 
-['Search DuckDuckGo: %s']
-url = 'https://duckduckgo.com/?q=%s'
-keyword = 'ddg'
-escape = true
-
+['(W)ikipedia: %s']
+url = 'https://en.wikipedia.org/w/index.php?title=Special:Search&search=%s'
+keyword = 'w'
+desc = "Search Wikipedia"
 
 ['Open Calculator']
 system = 'calc.exe'
 tags = ['math', 'work']
-desc = """Open your system's calculator app. This example uses Window's
+desc = """Open the calculator app. This example uses Window's
 calc.exe, but for other OS's you may need change this entry.
 
 For example, on Debian, you can use 'gnome-calculator' and on MacOs you can use
 '/System/Applications/Calculator.app/Contents/MacOS/Calculator'
 """
+
+['Send email to important recipient']
+location = 'mailto:example@example.com'
+tags = ['email']
+desc = """Jolly entries don't just have to be web urls. 
+Any protocol handler supported by your OS can be an entry. """
