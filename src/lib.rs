@@ -18,7 +18,7 @@ pub mod config;
 mod entry;
 pub mod error;
 mod icon;
-mod measured_container;
+mod custom;
 mod platform;
 mod search_results;
 mod settings;
@@ -302,7 +302,7 @@ impl Application for Jolly {
             }
         };
 
-        measured_container::MeasuredContainer::new(ui, Message::DimensionsChanged, self.bounds)
+        custom::MeasuredContainer::new(ui, Message::DimensionsChanged)
             .into()
     }
 
