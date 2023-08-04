@@ -15,7 +15,6 @@ where
 {
     content: Element<'a, Message, Renderer>,
     msg_builder: F,
-    old_bounds: iced::Rectangle,
 }
 
 impl<'a, Message, Renderer, F> MeasuredContainer<'a, Message, Renderer, F>
@@ -23,21 +22,16 @@ where
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     /// Creates a [`MeasuredContainer`] with the given content.
-    pub fn new(
-        content: impl Into<Element<'a, Message, Renderer>>,
-        callback: F,
-        old_bounds: Rectangle,
-    ) -> Self {
+    pub fn new(content: impl Into<Element<'a, Message, Renderer>>, callback: F) -> Self {
         MeasuredContainer {
             content: content.into(),
             msg_builder: callback,
-            old_bounds: old_bounds,
         }
     }
 }
 
 #[derive(Default)]
-struct State; // no state
+struct State(Option<Rectangle>); // no state
 
 impl<'a, Message, Renderer, F> Widget<Message, Renderer>
     for MeasuredContainer<'a, Message, Renderer, F>
@@ -99,7 +93,12 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle<f32>,
     ) -> event::Status {
-        let (orig_width, orig_height) = (self.old_bounds.width, self.old_bounds.height);
+        let state: &mut State = tree.state.downcast_mut();
+
+        let (orig_width, orig_height) = match state.0 {
+            None => (layout.bounds().width, layout.bounds().height),
+            Some(r) => (r.width, r.height),
+        };
 
         let limits = layout::Limits::new(Size::ZERO, Size::new(orig_width, f32::INFINITY));
 
@@ -109,7 +108,7 @@ where
 
         if new_height != orig_height || new_width != orig_width {
             shell.publish((self.msg_builder)(new_width, new_height));
-            self.old_bounds = bounds;
+            state.0 = Some(bounds);
         }
 
         if let event::Status::Captured = self.content.as_widget_mut().on_event(

@@ -15,10 +15,10 @@ use lazy_static;
 use std::sync::mpsc;
 
 pub mod config;
+mod custom;
 mod entry;
 pub mod error;
 mod icon;
-mod measured_container;
 mod platform;
 mod search_results;
 mod settings;
@@ -34,6 +34,7 @@ pub enum Message {
     SearchTextChanged(String),
     ExternalEvent(event::Event),
     EntrySelected(entry::EntryId),
+    EntryHovered(entry::EntryId),
     DimensionsChanged(f32, f32),
     StartedIconWorker(mpsc::Sender<icon::IconCommand>),
     IconReceived(icon::IconType, icon::Icon),
@@ -235,6 +236,10 @@ impl Application for Jolly {
                 self.search_results.handle_kb(e);
                 Command::none()
             }
+            Message::EntryHovered(entry) => {
+                self.search_results.set_selection(entry);
+                Command::none()
+            }
             Message::EntrySelected(entry) => self.handle_selection(entry),
             Message::StartedIconWorker(worker) => {
                 worker
@@ -302,8 +307,7 @@ impl Application for Jolly {
             }
         };
 
-        measured_container::MeasuredContainer::new(ui, Message::DimensionsChanged, self.bounds)
-            .into()
+        custom::MeasuredContainer::new(ui, Message::DimensionsChanged).into()
     }
 
     fn theme(&self) -> Self::Theme {
