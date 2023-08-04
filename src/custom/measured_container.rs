@@ -22,10 +22,7 @@ where
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
     /// Creates a [`MeasuredContainer`] with the given content.
-    pub fn new(
-        content: impl Into<Element<'a, Message, Renderer>>,
-        callback: F,
-    ) -> Self {
+    pub fn new(content: impl Into<Element<'a, Message, Renderer>>, callback: F) -> Self {
         MeasuredContainer {
             content: content.into(),
             msg_builder: callback,
@@ -78,7 +75,6 @@ where
         renderer: &Renderer,
         operation: &mut dyn Operation<Message>,
     ) {
-        
         self.content
             .as_widget()
             .operate(&mut tree.children[0], layout, renderer, operation);
@@ -97,14 +93,11 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle<f32>,
     ) -> event::Status {
+        let state: &mut State = tree.state.downcast_mut();
 
-        let  state : &mut State = tree.state.downcast_mut();
-
-
-        
         let (orig_width, orig_height) = match state.0 {
             None => (layout.bounds().width, layout.bounds().height),
-            Some(r) => (r.width, r.height)
+            Some(r) => (r.width, r.height),
         };
 
         let limits = layout::Limits::new(Size::ZERO, Size::new(orig_width, f32::INFINITY));

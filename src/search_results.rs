@@ -1,5 +1,6 @@
 use iced::{advanced, keyboard, widget};
 
+use crate::custom;
 use crate::entry;
 use crate::store;
 use crate::theme;
@@ -46,6 +47,12 @@ impl SearchResults {
         }
     }
 
+    pub fn set_selection(&mut self, id: entry::EntryId) {
+        if id < self.entries.len() {
+            self.selected = id;
+        }
+    }
+
     pub fn selected(&self) -> entry::EntryId {
         self.entries[self.selected]
     }
@@ -72,15 +79,14 @@ impl SearchResults {
         }
     }
 
-    pub fn view<'a, F, Message, Renderer>(
+    pub fn view<'a, F, Renderer>(
         &'a self,
         searchtext: &str,
         store: &'a store::Store,
         f: F,
-    ) -> iced::Element<'a, Message, Renderer>
+    ) -> iced::Element<'a, crate::Message, Renderer>
     where
-        F: 'static + Copy + Fn(entry::EntryId) -> Message,
-        Message: 'static + Clone,
+        F: 'static + Copy + Fn(entry::EntryId) -> crate::Message,
         Renderer: advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
         Renderer: advanced::text::Renderer,
         Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
@@ -99,7 +105,10 @@ impl SearchResults {
             let entry_widget =
                 entry.build_entry(f, searchtext, &self.settings, i == self.selected, *e);
 
-            column = column.push(entry_widget);
+            let mouse_area = custom::MouseArea::new(entry_widget)
+                .on_mouse_enter(crate::Message::EntryHovered(i));
+
+            column = column.push(mouse_area);
         }
         let element: iced::Element<'_, _, _> = column.into();
         element
