@@ -121,6 +121,15 @@ pub enum EntryType {
     SystemEntry(String),
 }
 
+impl fmt::Display for EntryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            EntryType::FileEntry(_) => f.write_str("FileEntry"),
+            EntryType::SystemEntry(_) => f.write_str("SystemEntry"),
+        }
+    }
+}
+
 impl StoreEntry {
     // parse a toml value into a store entry
     pub fn from_value(name: String, val: toml::Value) -> Result<Self, Error> {
@@ -311,6 +320,9 @@ impl StoreEntry {
             EntryType::SystemEntry(_) => platform::system,
         };
         let selection = self.format_selection(searchtext);
+
+        ::log::info!(r#"Selected Entry {}("{}")"#, &self.entry, selection);
+
         func(&selection).map_err(Error::PlatformError)
     }
 

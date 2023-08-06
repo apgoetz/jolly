@@ -10,6 +10,33 @@ use toml;
 
 pub const LOGFILE_NAME: &str = "jolly.toml";
 
+// helper enum to allow decoding a scalar into a single vec
+// original hint from here:
+// https://github.com/Mingun/ksc-rs/blob/8532f701e660b07b6d2c74963fdc0490be4fae4b/src/parser.rs#L18-L42
+// (MIT LICENSE)
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+enum OneOrMany<T> {
+    /// Single value
+    One(T),
+    /// Array of values
+    Vec(Vec<T>),
+}
+impl<T> From<OneOrMany<T>> for Vec<T> {
+    fn from(from: OneOrMany<T>) -> Self {
+        match from {
+            OneOrMany::One(val) => vec![val],
+            OneOrMany::Vec(vec) => vec,
+        }
+    }
+}
+
+pub fn one_or_many<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<T>, D::Error> {
+    OneOrMany::deserialize(d).map(Vec::from)
+}
+
 // represents the data that is loaded from the main configuration file
 // it will always have some settings internally, even if the config
 // file is not found.  if there is an error parsing the config, a
@@ -170,5 +197,20 @@ mod tests {
         assert_ne!(settings.ui.entry, Default::default());
 
         assert_ne!(settings.ui.search, Default::default());
+    }
+
+    #[test]
+    fn test_one_or_many() {
+        use super::one_or_many;
+        use serde::de::value::{MapDeserializer, SeqDeserializer, UnitDeserializer};
+
+        let _: Vec<()> = one_or_many(UnitDeserializer::<serde::de::value::Error>::new()).unwrap();
+
+        let seq_de = SeqDeserializer::<_, serde::de::value::Error>::new(std::iter::once(()));
+        one_or_many::<Vec<()>, _>(seq_de).unwrap();
+
+        let map_de =
+            MapDeserializer::<_, serde::de::value::Error>::new(std::iter::once(("a", "b")));
+        one_or_many::<Vec<()>, _>(map_de).unwrap_err();
     }
 }

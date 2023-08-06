@@ -7,6 +7,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use ::log::trace;
 use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
 use iced::{clipboard, event, keyboard, subscription, widget, window};
@@ -19,6 +20,7 @@ mod custom;
 mod entry;
 pub mod error;
 mod icon;
+mod log;
 mod platform;
 mod search_results;
 mod settings;
@@ -69,6 +71,7 @@ pub struct Jolly {
 
 impl Jolly {
     fn move_to_err(&mut self, err: error::Error) -> Command<<Jolly as Application>::Message> {
+        ::log::error!("{err}");
         self.store_state = StoreLoadedState::Finished(err);
         Command::none()
     }
@@ -87,6 +90,9 @@ impl Jolly {
         if self.modifiers.command() {
             let result = entry.format_selection(&self.searchtext);
             let msg = format!("copied to clipboard: {}", &result);
+
+            ::log::info!("{msg}");
+
             let cmds = [
                 clipboard::write(result),
                 self.move_to_err(error::Error::FinalMessage(msg)),
@@ -120,10 +126,11 @@ impl Application for Jolly {
         jolly.store_state = match config.store {
             Ok(store) => {
                 let msg = format!("Loaded {} entries", store.len());
+
                 StoreLoadedState::LoadSucceeded(store, msg)
             }
             Err(e) => {
-                eprintln!("{e}");
+                ::log::error!("{e}");
                 StoreLoadedState::Finished(e)
             }
         };
@@ -143,6 +150,8 @@ impl Application for Jolly {
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        trace!("Received Message::{:?}", message);
+
         // first, match the messages that would cause us to quit regardless of application state
         match message {
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
