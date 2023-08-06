@@ -47,6 +47,8 @@ dirs = "5"
 [dev-dependencies] 
 tempfile = "3"
 
+[build-dependencies]
+chrono = { version = "0.4.26", default-features = false, features = ["clock"]}
 
 [target.'cfg(windows)'.build-dependencies]
 resvg = "0.29.0"

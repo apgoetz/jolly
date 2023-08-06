@@ -1,14 +1,24 @@
 // build script to add icon to Jolly executable.
 // this script is only used on windows platforms
 
+fn common() {
+    use chrono::Utc;
+    let date = Utc::now().date_naive();
+    println!("cargo:rustc-env=JOLLY_BUILD_DATE={date}");
+}
+
 // no build requirements for macos FOR NOW
 #[cfg(target_os = "macos")]
-fn main() {}
+fn main() {
+    common();
+}
 
 // check to make sure dependencies are installed
 #[cfg(all(unix, not(target_os = "macos")))]
 fn main() {
     use std::env;
+
+    common();
 
     let theme = env::var("JOLLY_DEFAULT_THEME").unwrap_or("gnome".into());
     println!("cargo:rustc-env=JOLLY_DEFAULT_THEME={}", theme);
@@ -56,6 +66,8 @@ fn main() {
 // set a nice icon
 #[cfg(windows)]
 fn main() {
+    common();
+
     // determine path to save icon to
     let out_file = format!("{}/jolly.ico", std::env::var("OUT_DIR").unwrap());
 

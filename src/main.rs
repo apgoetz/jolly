@@ -1,13 +1,23 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use iced::{Application, Settings};
-use jolly::{config, error, Jolly};
+use jolly::{cli, config, Jolly};
+use std::process::ExitCode;
 use std::time::Instant;
 
-pub fn main() -> Result<(), error::Error> {
+pub fn main() -> ExitCode {
+    let custom_config = match cli::parse_args(std::env::args()) {
+        Ok(c) => c.config,
+        Err(e) => return e,
+    };
+
     let now = Instant::now();
 
-    let mut config = config::Config::load();
+    let mut config = if let Some(path) = custom_config {
+        config::Config::custom_load(path)
+    } else {
+        config::Config::load()
+    };
 
     let elapsed = now.elapsed();
 
@@ -35,5 +45,7 @@ pub fn main() -> Result<(), error::Error> {
     settings.default_text_size = config.settings.ui.common.text_size().into();
     settings.flags = config;
 
-    Jolly::run(settings).map_err(error::Error::IcedError)
+    Jolly::run(settings)
+        .map(|_| ExitCode::SUCCESS)
+        .unwrap_or(ExitCode::FAILURE)
 }
