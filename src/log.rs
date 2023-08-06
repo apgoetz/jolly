@@ -24,12 +24,12 @@ impl LogSettings {
             .format_timestamp_micros()
             .target(env_logger::fmt::Target::Stderr);
 
-        if let Some(f) = &self.file {
+        if let Some(fname) = &self.file {
             let f = std::fs::OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(f)
-                .map_err(error::Error::IoError)?;
+                .open(fname)
+                .map_err(|e| error::Error::IoError(self.file.clone(), e))?;
             builder.target(env_logger::fmt::Target::Pipe(Box::new(f)));
         }
 

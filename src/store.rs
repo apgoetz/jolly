@@ -150,7 +150,7 @@ pub mod tests {
         let toml = r#"bare_key = 42"#;
         let text = parse_store(toml);
         assert!(
-            matches!(text, Err(entry::Error::BareKeyError(_))),
+            matches!(text, Err(entry::Error::ParseError(_))),
             "{:?}",
             text
         )
