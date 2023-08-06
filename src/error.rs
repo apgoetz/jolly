@@ -10,8 +10,9 @@ use std::io;
 pub enum Error {
     StoreError(entry::Error),
     IcedError(iced::Error),
-    IoError(io::Error),
+    IoError(Option<String>, io::Error),
     ParseError(String),
+    ContextParseError(String, String),
     PlatformError(platform::Error),
     CustomError(String),
     FinalMessage(String),
@@ -25,15 +26,21 @@ impl fmt::Display for Error {
                 e.fmt(f)
             }
             Error::IcedError(e) => e.fmt(f),
-            Error::IoError(e) => {
-                write!(f, "could not access jolly.toml: \n")?;
+            Error::IoError(file, e) => {
+                if let Some(file) = file {
+                    write!(f, "with file '{file}': \n")?;
+                } else {
+                    f.write_str("IO Error:\n")?;
+                }
                 e.fmt(f)
             }
-            Error::ParseError(e) => {
-                write!(f, "while parsing jolly.toml: \n")?;
+            Error::ParseError(e) => f.write_str(e),
+            Error::ContextParseError(file, e) => {
+                write!(f, "while parsing '{file}':\n")?;
                 e.fmt(f)
             }
             Error::PlatformError(e) => e.fmt(f),
+
             Error::CustomError(s) => f.write_str(s),
             // not really an error, used to represent final message in UI
             Error::FinalMessage(s) => f.write_str(s),

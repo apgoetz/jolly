@@ -13,8 +13,6 @@ use crate::theme;
 use crate::ui;
 use crate::{icon, platform};
 
-use crate::config::LOGFILE_NAME;
-
 // these are the weights for the different kind of matches.
 // we prefer each weight to be different so we can differentiate them in the test plan
 const FULL_KEYWORD_W: u32 = 100;
@@ -28,30 +26,15 @@ pub type EntryId = usize;
 
 #[derive(Debug)]
 pub enum Error {
-    IOError(std::io::Error),
     ParseError(String),
-    BareKeyError(String),
-    CustomError(String),
     PlatformError(platform::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::IOError(e) => e.fmt(f),
             Error::PlatformError(e) => e.fmt(f),
-            Error::BareKeyError(e) => {
-                write!(
-                    f,
-                    "Invalid {} entry '{}': Jolly entries can only be TOML tables",
-                    LOGFILE_NAME, e
-                )
-            }
-            Error::ParseError(e) => {
-                write!(f, "TOML Error: ")?;
-                e.fmt(f)
-            }
-            Error::CustomError(s) => f.write_str(s),
+            Error::ParseError(s) => f.write_str(s),
         }
     }
 }
@@ -134,11 +117,13 @@ impl StoreEntry {
     // parse a toml value into a store entry
     pub fn from_value(name: String, val: toml::Value) -> Result<Self, Error> {
         if !val.is_table() {
-            return Err(Error::BareKeyError(name));
+            return Err(Error::ParseError(format!(
+                "Invalid entry '{name}': Jolly entries can only be TOML tables"
+            )));
         }
 
-        let raw_entry =
-            RawStoreEntry::deserialize(val).map_err(|e| Error::ParseError(e.to_string()))?;
+        let raw_entry = RawStoreEntry::deserialize(val)
+            .map_err(|e| Error::ParseError(format!("TOML Error: {}", e.message())))?;
 
         let keyword = if let Some(keyword) = raw_entry.keyword {
             if raw_entry.url.is_some() || raw_entry.escape.unwrap_or(false) {
@@ -158,7 +143,7 @@ impl StoreEntry {
             (None, None, Some(loc)) => loc,
             (None, None, None) => name.to_string(),
             _ => {
-                return Err(Error::CustomError(format!(
+                return Err(Error::ParseError(format!(
                     "Error with entry ['{}']: The entry should only specify one of location/url/system keys",
                     &name
                 )))

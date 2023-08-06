@@ -101,12 +101,15 @@ fn get_logfile() -> Result<path::PathBuf, Error> {
 }
 
 pub fn load_path<P: AsRef<path::Path>>(path: P) -> Result<Config, Error> {
-    let txt = fs::read_to_string(path).map_err(Error::IoError)?;
+    let txt = fs::read_to_string(&path)
+        .map_err(|e| Error::IoError(Some(path.as_ref().display().to_string()), e))?;
     load_txt(&txt)
+        .map_err(|e| Error::ContextParseError(path.as_ref().display().to_string(), e.to_string()))
 }
 
 fn load_txt(txt: &str) -> Result<Config, Error> {
-    let value: toml::Value = toml::from_str(txt).map_err(|e| Error::ParseError(e.to_string()))?;
+    let value: toml::Value =
+        toml::from_str(txt).map_err(|e| Error::ParseError(e.message().to_string()))?;
 
     let mut parsed_config = match value {
         toml::Value::Table(t) => t,
@@ -117,7 +120,7 @@ fn load_txt(txt: &str) -> Result<Config, Error> {
 
     let mut settings = match parsed_config.remove("config") {
         Some(config) => {
-            Settings::deserialize(config).map_err(|e| Error::ParseError(e.to_string()))?
+            Settings::deserialize(config).map_err(|e| Error::ParseError(e.message().to_string()))?
         }
         None => Settings::default(),
     };
@@ -179,7 +182,7 @@ mod tests {
     #[test]
     fn nonexistent_path() {
         let result = load_path("nonexistentfile.toml");
-        assert!(matches!(result, Err(Error::IoError(_))));
+        assert!(matches!(result, Err(Error::IoError(_, _))));
     }
 
     #[test]
