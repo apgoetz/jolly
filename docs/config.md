@@ -30,6 +30,10 @@ accent_color= "orange"
 [config.ui.search]
 text_size = 40 # make search window bigger
 
+[config.log]
+file = 'path/to/logfile'
+filters = "debug"
+
 ### Jolly entries below...
 
 ```
@@ -269,3 +273,55 @@ JOLLY_DEFAULT_THEME=Adwaita cargo build
 
 As a general rule, the jolly build script will warn if the
 `JOLLY_DEFAULT_THEME` doesn't seem to be installed at compile time.
+
+# <a name="log"></a> [config.log]
+
+The `[config.log]` table contains settings that control error logging
+and debugging of Jolly. By default, Jolly will display error messages
+in the UI and print them to `stderr`, but this behavior can be
+customized.
+
+**Important Note** *When you are trying to troubleshoot a bug in
+Jolly, you may be asked to supply logfiles from operating
+Jolly. Please be aware that at higher log levels, Jolly will include
+the Jolly entry targets, and whichever text was entered in the search
+window. This may be considered sensitive information and you should
+always review logs before sharing them.*
+
+To customize behavior, use the following fields:
+
+| field name | data type                  | description                                                                                                                              |
+|------------|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `file`     | *string*                   | Additional filename to write logs to. Always appends.                                                                                    |
+| `filters`  | *string* OR *string array* | [env_logger](https://docs.rs/env_logger/latest/env_logger/index.html#enabling-logging) filters for logging, by default, only log `error` |
+
+
+As an example log file configuration, consider the following snippet: 
+
+```toml
+[config.log]
+
+# Jolly logs are stored in log file below
+file = 'path/to/logfile'
+
+# messages from jolly crate at debug level, and cosmic_text crate at trace level
+filters = ["jolly=debug", "cosmic_text=trace"]
+
+```
+
+
+## `file`        &mdash; *string*
+
+Specify a filename for Jolly to write logs to. If the file cannot be
+accessed then an error is returned. Jolly will always append to this
+file if it already exists. Jolly will also continue to write trace
+messages to `stderr`.
+
+## `filters`        &mdash; *string* OR *string array*
+
+The `filters` key can be used to specify one or more
+[env_logger](https://docs.rs/env_logger/latest/env_logger/index.html#enabling-logging)
+filters. These filters are used to determine which log level is
+set. By default, only `errors` are logged, which also generally would
+appear in the UI.
+

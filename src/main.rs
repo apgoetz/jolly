@@ -2,9 +2,28 @@
 
 use iced::{Application, Settings};
 use jolly::{config, error, Jolly};
+use std::time::Instant;
 
 pub fn main() -> Result<(), error::Error> {
-    let config = config::Config::load();
+    let now = Instant::now();
+
+    let mut config = config::Config::load();
+
+    let elapsed = now.elapsed();
+
+    // if we could not initialize the logger, we set the store to
+    // error, so the ui shows the issue
+    if let Err(e) = config.settings.log.init_logger() {
+        config.store = Err(e);
+    }
+
+    if let Ok(s) = &config.store {
+        ::log::debug!(
+            "Loaded {} entries in {:.6} sec",
+            s.len(),
+            elapsed.as_secs_f32()
+        );
+    }
 
     let mut settings = Settings::default();
     settings.window.size = (

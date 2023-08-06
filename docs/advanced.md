@@ -1,5 +1,9 @@
 Below are a couple of advanced tips and tricks for using Jolly:
 
+# Troubleshooting
+
+Don't forget that Jolly can log detailed trace events of its performance using `env_logger`. For more details, see the [logging documentation](config.md#log)
+
 # Copying Links
 
 Sometimes you don't need to open a Jolly entry, just determine the location
