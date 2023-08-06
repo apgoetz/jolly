@@ -8,6 +8,26 @@ the [TOML](https://toml.io) markup language.
 You can find out more details about the syntax of TOML on the above
 webpage, but the basics are defined below. 
 
+## <a name="locations"></a> Config File Locations
+
+Jolly searches for a config file in the following locations: 
+
+1. A custom file location specified via the command line, such as `jolly /path/to/custom/jolly.toml`
+2. A file named `jolly.toml` in the current working directory
+3. A file named `jolly.toml` in the *config directory*
+
+*config directory* is defined with different paths depending on the platform: 
+
+| Platform | Value                                 | Example                                  |
+|----------|---------------------------------------|------------------------------------------|
+| Linux    | `$XDG_CONFIG_HOME` or `$HOME`/.config | /home/alice/.config                      |
+| macOS    | `$HOME`/Library/Application Support   | /Users/Alice/Library/Application Support |
+| Windows  | `{FOLDERID_LocalAppData}`             | C:\Users\Alice\AppData\Local             |
+
+If a `jolly.toml` config file cannot be located, Jolly will show an error message and exit. 
+
+## Example Config
+
 For the purposes of this example, we will refer to an example `jolly.toml` file located in this documentation (you can find a full version of the file [here](jolly.toml)):
 
 ```toml
@@ -296,17 +316,6 @@ url = 'https://duckduckgo.com/?q=%s'
 keyword = 'ddg'
 ```
 
-# <a name="locations"></a> Jolly Database Search Locations
-
-
-Jolly searches for a database file (always named `jolly.toml` in the
-following locations, in descending order of priority:
-
-1. The current working directory
-2. In the User's [configuration directory](https://docs.rs/dirs/latest/dirs/fn.config_dir.html)
-
-*Note: The user's configuration directory is platform dependent, the
-value for various platforms can be found in the above link.*
 
 # <a name="errors"></a> Errors
 Sometimes Jolly will encounter an error can cannot proceed. Usually,

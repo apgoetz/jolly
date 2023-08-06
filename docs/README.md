@@ -1,5 +1,19 @@
-To use Jolly, simply run the `jolly` executable. Jolly will look for a
-suitable [configuration file](file-format.md#locations) `jolly.toml`. 
+To use Jolly, simply run the `jolly` executable. 
+
+```bash
+# Run Jolly with jolly.toml in the current directory
+jolly
+```
+
+To use a config file that is not in the current directory, pass its path on the command line:
+
+```bash
+# Run Jolly with a custom config file
+jolly /path/to/custom/jolly.toml
+```
+
+For more details on how Jolly finds its config file, see the
+[documentation](file-format.md#locations).
 
 By default, Jolly won't show any results: just tell you how many entries it has loaded:
 

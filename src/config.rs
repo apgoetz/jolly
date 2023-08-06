@@ -58,6 +58,17 @@ impl Default for Config {
 }
 
 impl Config {
+    pub fn custom_load(path: String) -> Self {
+        let config = load_path(path);
+        match config {
+            Err(e) => Self {
+                settings: Default::default(),
+                store: Err(e),
+            },
+            Ok(c) => c,
+        }
+    }
+
     pub fn load() -> Self {
         match get_logfile().map(load_path) {
             Ok(config) => config.unwrap_or_else(|e| Self {

@@ -10,10 +10,25 @@ https://user-images.githubusercontent.com/1356587/209451235-6911e5f1-fb4d-4348-9
 
 # Quick Introduction
 
-To use Jolly, simply run the `jolly` executable. Jolly will then look for a
-suitable [configuration file](docs/file-format.md#locations) `jolly.toml`. 
+To use Jolly, simply run the `jolly` executable. 
 
-By default, Jolly won't show any results: just tell you how many entries it has loaded:
+```bash
+# Run Jolly with jolly.toml in the current directory
+jolly
+```
+
+To use a config file that is not in the current directory, pass its path on the command line:
+
+```bash
+# Run Jolly with a custom config file
+jolly /path/to/custom/jolly.toml
+```
+
+For more details on how Jolly finds its config file, see the
+[documentation](docs/file-format.md#locations).
+
+By default, Jolly won't show any results: just tell you how many
+entries it has loaded:
 
 ![startup page](docs/static/startup.png)
 
@@ -29,7 +44,7 @@ or click it with the mouse.
 To learn more about the file format used by Jolly, see the [file-format](docs/file-format.md) page.
 
 To learn more about changing settings for Jolly, including how to
-customize the theme, see the [config](config.md) page.
+customize the theme, see the [config](docs/config.md) page.
 
 To learn more advanced tips and tricks, see the [advanced](docs/advanced.md) usage page.
 

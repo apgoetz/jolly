@@ -15,6 +15,7 @@ use iced::{executor, Application, Command, Element, Length, Renderer, Size};
 use lazy_static;
 use std::sync::mpsc;
 
+pub mod cli;
 pub mod config;
 mod custom;
 mod entry;
