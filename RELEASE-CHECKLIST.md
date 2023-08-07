@@ -2,7 +2,7 @@ Release Checklist
 -----------------
 This checklist is based on ripgrep release process . 
 
-* Ensure local `master` is up to date with respect to `origin/master`.
+* Ensure local `main` is up to date with respect to `origin/main`.
 * Make sure that `rustc --version` matches MSRV. 
 * Run `cargo update` and review dependency updates. Commit updated
   `Cargo.lock`.
@@ -10,7 +10,8 @@ This checklist is based on ripgrep release process .
   a strong motivation otherwise, review and update every dependency.
 * Run `cargo test` or `cargo msrv` to check if MSRV needs to be
   bumped. If MSRV must be updated, update `rust-version` key in Cargo.toml as well
-  as the MSRV version mentioned in the readme. 
+  as the MSRV version mentioned in the readme.
+* Run `cargo deny check` and check output. Update dependencies as necessary.
 * Update the CHANGELOG as appropriate.
 * Edit the `Cargo.toml` to set the new jolly version. Run
   `cargo update -p jolly` so that the `Cargo.lock` is updated. Commit the
