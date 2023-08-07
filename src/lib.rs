@@ -8,6 +8,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use ::log::trace;
+use iced::widget::text::Shaping;
 use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
 use iced::{clipboard, event, keyboard, subscription, widget, window};
@@ -301,7 +302,7 @@ impl Application for Jolly {
                 .into(),
             Pending => Text::new("Loading Bookmarks...").into(),
             Finished(err) => {
-                let errtext = Text::new(err.to_string());
+                let errtext = Text::new(err.to_string()).shaping(Shaping::Advanced);
                 let style;
                 let children;
                 if let error::Error::FinalMessage(_) = err {
