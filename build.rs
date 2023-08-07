@@ -72,23 +72,29 @@ fn main() {
     let out_file = format!("{}/jolly.ico", std::env::var("OUT_DIR").unwrap());
 
     // render SVG as PNG
-    let opt = usvg::Options::default();
+    use resvg::usvg::TreeParsing;
     let svg_data = std::fs::read("icon/jolly.svg").unwrap();
-    let rtree = usvg::Tree::from_data(&svg_data, &opt).unwrap();
-    let width: u32 = 256;
-    let height = width;
-    let pixmap_size = rtree
-        .size
-        .scale_to(usvg::Size::new(width.into(), height.into()).unwrap())
-        .to_screen_size();
-    let mut pixmap = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
-    resvg::render(
-        &rtree,
-        usvg::FitTo::Width(width),
-        tiny_skia::Transform::default(),
-        pixmap.as_mut(),
-    )
-    .unwrap();
+    let utree =
+        resvg::usvg::Tree::from_data(&svg_data, &Default::default()).expect("could not parse svg");
+
+    let icon_size = 256 as u32;
+
+    let mut pixmap =
+        resvg::tiny_skia::Pixmap::new(icon_size, icon_size).expect("could not create pixmap");
+
+    let rtree = resvg::Tree::from_usvg(&utree);
+
+    // we have non-square svg
+    assert_eq!(
+        rtree.size.width(),
+        rtree.size.height(),
+        "Jolly Icon not square"
+    );
+
+    let scalefactor = icon_size as f32 / rtree.size.width();
+    let transform = resvg::tiny_skia::Transform::from_scale(scalefactor, scalefactor);
+
+    rtree.render(transform, &mut pixmap.as_mut());
     let bytes = pixmap.encode_png().unwrap();
 
     // Create a new, empty icon collection:
