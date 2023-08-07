@@ -231,12 +231,22 @@ impl Application for Jolly {
                     } else if key == keyboard::KeyCode::NumpadEnter
                         || key == keyboard::KeyCode::Enter
                     {
-                        return self.handle_selection(self.search_results.selected());
+                        let cmd = if let Some(id) = self.search_results.selected() {
+                            self.handle_selection(id)
+                        } else {
+                            iced::window::close()
+                        };
+                        return cmd;
                     }
                 }
 
                 if keyboard::Event::CharacterReceived('\r') == e {
-                    return self.handle_selection(self.search_results.selected());
+                    let cmd = if let Some(id) = self.search_results.selected() {
+                        self.handle_selection(id)
+                    } else {
+                        iced::window::close()
+                    };
+                    return cmd;
                 }
 
                 if let keyboard::Event::ModifiersChanged(m) = e {

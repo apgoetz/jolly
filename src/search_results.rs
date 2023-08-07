@@ -53,8 +53,8 @@ impl SearchResults {
         }
     }
 
-    pub fn selected(&self) -> entry::EntryId {
-        self.entries[self.selected]
+    pub fn selected(&self) -> Option<entry::EntryId> {
+        self.entries.get(self.selected).map(|e| *e)
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
