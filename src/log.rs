@@ -14,26 +14,38 @@ pub struct LogSettings {
 
 impl LogSettings {
     pub fn init_logger(&self) -> Result<(), error::Error> {
-        self.build_logger().map(|mut b| b.init())
+        self.build_logger().map(|b| {
+            if let Some(mut b) = b {
+                b.init()
+            }
+        })
     }
 
-    fn build_logger(&self) -> Result<Builder, error::Error> {
+    fn build_logger(&self) -> Result<Option<Builder>, error::Error> {
+        use env_logger::fmt::Target;
+
         let mut builder = Builder::new();
         builder
             .parse_filters(&self.filters.join(","))
-            .format_timestamp_micros()
-            .target(env_logger::fmt::Target::Stderr);
+            .format_timestamp_micros();
 
-        if let Some(fname) = &self.file {
-            let f = std::fs::OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(fname)
-                .map_err(|e| error::Error::IoError(self.file.clone(), e))?;
-            builder.target(env_logger::fmt::Target::Pipe(Box::new(f)));
+        if let Some(filename) = &self.file {
+            if filename == "stdout" {
+                builder.target(Target::Stdout);
+            } else if filename == "stderr" {
+                builder.target(Target::Stderr);
+            } else {
+                let f = std::fs::OpenOptions::new()
+                    .append(true)
+                    .create(true)
+                    .open(filename)
+                    .map_err(|e| error::Error::IoError(self.file.clone(), e))?;
+                builder.target(env_logger::fmt::Target::Pipe(Box::new(f)));
+            }
+            Ok(Some(builder))
+        } else {
+            Ok(None)
         }
-
-        Ok(builder)
     }
 }
 
@@ -52,6 +64,7 @@ mod tests {
             filters: vec!["trace".into()],
         }
         .build_logger()
+        .map(Option::unwrap)
     }
 
     #[test]
