@@ -167,6 +167,23 @@ trait IconInterface {
                     Err("is unsupported icon type".into())
                 }
             }
+            IconVariant::System(command) => {
+                // heuristic: dont use full path but only first
+                // word in system entry
+                use which::which;
+
+                if let Some(exe) = command.split(" ").next().and_then(|e| which(e).ok()) {
+                    self.try_load_icon(IconType::file(exe))
+                } else if let Some(exe) = command
+                    .split(" ")
+                    .next()
+                    .and_then(|exe| self.try_load_icon(IconType::file(exe)).ok())
+                {
+                    Ok(exe)
+                } else {
+                    self.try_load_icon(IconType::file(command))
+                }
+            }
         }
     }
 }
@@ -195,6 +212,10 @@ impl IconType {
     pub fn file<P: AsRef<std::path::Path>>(path: P) -> Self {
         Self(IconVariant::File(path.as_ref().into()))
     }
+
+    pub fn system<S: ToString>(cmd: S) -> Self {
+        Self(IconVariant::System(cmd.to_string()))
+    }
 }
 
 // represents the necessary information in an entry to look up an icon
@@ -206,6 +227,8 @@ enum IconVariant {
     Url(url::Url),
     // render using icon for path
     File(std::path::PathBuf),
+    // Like a file, but uses heuristics in case command has arguments
+    System(String),
     // override "normal" icon and use icon from this path
     CustomIcon(std::path::PathBuf),
 }
@@ -216,6 +239,7 @@ impl Hash for IconVariant {
             IconVariant::Url(u) => u.scheme().hash(state),
             IconVariant::File(p) => p.hash(state),
             IconVariant::CustomIcon(p) => p.hash(state),
+            IconVariant::System(p) => p.hash(state),
         }
     }
 }
@@ -240,6 +264,13 @@ impl PartialEq for IconVariant {
             }
             IconVariant::CustomIcon(s) => {
                 if let IconVariant::CustomIcon(o) = other {
+                    s == o
+                } else {
+                    false
+                }
+            }
+            IconVariant::System(s) => {
+                if let IconVariant::System(o) = other {
                     s == o
                 } else {
                     false
@@ -384,6 +415,8 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 
 #[cfg(test)]
 mod tests {
+    use crate::icon::IconType;
+
     use super::{Icon, IconError, IconInterface, IconSettings};
     use iced::advanced::image;
 
@@ -611,5 +644,45 @@ mod tests {
             }
             if *w == DEFAULT_ICON_SIZE as u32 && *h == DEFAULT_ICON_SIZE as u32
         ));
+    }
+
+    #[test]
+    fn system_entry_heuristic() {
+        use tempfile::tempdir;
+
+        #[cfg(windows)]
+        let exe = "cmd.exe";
+        #[cfg(not(windows))]
+        let exe = "echo";
+
+        let os = IconSettings::default();
+
+        os.try_load_icon(IconType::system(format!("{exe}")))
+            .unwrap();
+        os.try_load_icon(IconType::system(format!("{exe} a b c")))
+            .unwrap();
+
+        let dir = tempdir().unwrap();
+
+        let exe = dir.path().join("test.txt").display().to_string();
+        std::fs::File::create(&exe).unwrap();
+
+        assert!(
+            !exe.contains(" "),
+            "test requires that temp dir path not have spaces: actual path: {exe}"
+        );
+
+        os.try_load_icon(IconType::system(format!("{exe}")))
+            .unwrap();
+        os.try_load_icon(IconType::system(format!("{exe} a b c")))
+            .unwrap();
+
+        let exe = dir.path().join("test with spaces.py").display().to_string();
+        std::fs::File::create(&exe).unwrap();
+
+        os.try_load_icon(IconType::system(format!("{exe}")))
+            .unwrap();
+        os.try_load_icon(IconType::system(format!("{exe} a b c")))
+            .unwrap_err();
     }
 }
