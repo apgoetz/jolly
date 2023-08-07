@@ -277,22 +277,21 @@ As a general rule, the jolly build script will warn if the
 # <a name="log"></a> [config.log]
 
 The `[config.log]` table contains settings that control error logging
-and debugging of Jolly. By default, Jolly will display error messages
-in the UI and print them to `stderr`, but this behavior can be
-customized.
+and debugging of Jolly. By default, Jolly does not perform any
+logging, but this behavior can be customized.
 
 **Important Note** *When you are trying to troubleshoot a bug in
-Jolly, you may be asked to supply logfiles from operating
-Jolly. Please be aware that at higher log levels, Jolly will include
-the Jolly entry targets, and whichever text was entered in the search
-window. This may be considered sensitive information and you should
-always review logs before sharing them.*
+Jolly, you may be asked to supply logfiles. Please be aware that at
+higher log levels, Jolly will include the Jolly entry targets, and
+whichever text was entered in the search window. This may be
+considered sensitive information and you should always review logs
+before sharing them.*
 
 To customize behavior, use the following fields:
 
 | field name | data type                  | description                                                                                                                              |
 |------------|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `file`     | *string*                   | Additional filename to write logs to. Always appends.                                                                                    |
+| `file`     | *string*                   | Filename to write logs to. Always appends. Can be `'stdout'` or `'stderr'` to write to that stream                                       |
 | `filters`  | *string* OR *string array* | [env_logger](https://docs.rs/env_logger/latest/env_logger/index.html#enabling-logging) filters for logging, by default, only log `error` |
 
 
@@ -314,8 +313,11 @@ filters = ["jolly=debug", "cosmic_text=trace"]
 
 Specify a filename for Jolly to write logs to. If the file cannot be
 accessed then an error is returned. Jolly will always append to this
-file if it already exists. Jolly will also continue to write trace
-messages to `stderr`.
+file if it already exists.
+
+Jolly treats a file named `'stderr'` `'stdout'` as special: If file is
+set to one of these values, it will write to the corresponding stream.
+
 
 ## `filters`        &mdash; *string* OR *string array*
 
