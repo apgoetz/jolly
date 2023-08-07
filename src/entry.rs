@@ -165,7 +165,7 @@ impl StoreEntry {
             icon::IconType::custom(p)
         } else {
             match &entry {
-                EntryType::SystemEntry(loc) => icon::IconType::file(loc),
+                EntryType::SystemEntry(loc) => icon::IconType::system(loc),
                 EntryType::FileEntry(loc) => {
                     let parsed_loc = format_param(loc, "");
 
@@ -683,7 +683,7 @@ mod tests {
                 .map(str::to_string)
                 .collect(),
             icon: None,
-            icon_type: IconType::file("foo bar"),
+            icon_type: IconType::system("foo bar"),
         };
 
         let entry = parse_entry(&toml);

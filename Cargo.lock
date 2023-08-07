@@ -1736,6 +1736,7 @@ dependencies = [
  "url",
  "urlencoding",
  "usvg 0.29.0",
+ "which",
  "windows 0.48.0",
  "winres",
  "xdg-mime",
@@ -4007,6 +4008,17 @@ dependencies = [
  "bitflags 2.3.3",
  "js-sys",
  "web-sys",
+]
+
+[[package]]
+name = "which"
+version = "4.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2441c784c52b289a054b7201fc93253e288f094e2f4be9058343127c4226a269"
+dependencies = [
+ "either",
+ "libc",
+ "once_cell",
 ]
 
 [[package]]
