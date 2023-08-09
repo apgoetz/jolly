@@ -1,9 +1,9 @@
 [package]
 name = "jolly"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "small bookmarking launcher for desktop usage, developed with iced"
+description = "a bookmark manager meets an application launcher, developed with iced"
 homepage = "https://github.com/apgoetz/jolly"
 documentation = "https://github.com/apgoetz/jolly"
 repository = "https://github.com/apgoetz/jolly"

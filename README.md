@@ -1,12 +1,11 @@
 # <img src="icon/jolly.svg" style="height: 1em;"/> Jolly <img src="icon/jolly.svg" style="height: 1em;"/>
-Jolly is cross between a bookmark manager and an application launcher. 
+Jolly is a cross between a bookmark manager and an application launcher. 
 
 It extends the concept of your browser bookmarking interface, but
 allows these bookmarks to access files on your local file system, as
 well as run commands in your shell.
 
-https://user-images.githubusercontent.com/1356587/209451235-6911e5f1-fb4d-4348-903b-ea75bcbff0ca.mp4
-
+https://user-images.githubusercontent.com/1356587/259296825-59452f58-701d-410c-9da3-61f1e2f48e91.mov
 
 # Quick Introduction
 
