@@ -418,7 +418,6 @@ mod tests {
     use crate::icon::IconType;
 
     use super::{Icon, IconError, IconInterface, IconSettings};
-    use iced::advanced::image;
 
     pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
         use std::collections::hash_map::DefaultHasher;
@@ -432,17 +431,18 @@ mod tests {
     }
 
     fn iconlike(icon: Icon, err_msg: &str) {
-        match icon.data() {
-            image::Data::Path(p) => {
+        match icon {
+            Icon::Path(_,p) => {
                 assert!(p.exists())
             }
-            image::Data::Bytes(bytes) => {
+            Icon::Bytes(_,bytes) => {
                 assert!(bytes.len() > 0)
             }
-            image::Data::Rgba {
+            Icon::Rgba {
                 width,
                 height,
                 pixels,
+                ..
             } => {
                 let num_pixels = width * height;
 
@@ -626,7 +626,7 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(pbm_icon.data(), image::Data::Path(_)));
+        assert!(matches!(pbm_icon, Icon::Path(_,_)));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
@@ -636,11 +636,11 @@ mod tests {
 
         let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
-            svg_icon.data(),
-            image::Data::Rgba {
+            svg_icon,
+            Icon::Rgba {
                 width: w,
                 height: h,
-                pixels: _
+                ..
             }
             if *w == DEFAULT_ICON_SIZE as u32 && *h == DEFAULT_ICON_SIZE as u32
         ));
