@@ -322,7 +322,6 @@ impl StoreEntry {
     where
         F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: advanced::Renderer<Theme = theme::Theme> + 'a,
         Renderer: advanced::text::Renderer,
         Renderer: advanced::image::Renderer<Handle = iced::widget::image::Handle>,
     {
