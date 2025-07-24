@@ -9,7 +9,7 @@
 
 use ::log::trace;
 use iced::widget::text::Shaping;
-use iced::widget::text_input;
+use iced::widget::{text_input, Container};
 use iced::widget::{Text, TextInput};
 use iced::{clipboard, event, keyboard, subscription, widget, window};
 use iced::{executor, Application, Command, Element, Length, Renderer, Size};
@@ -327,8 +327,8 @@ impl Application for Jolly {
                     .into()
             }
         };
-
-        custom::MeasuredContainer::new(ui, Message::DimensionsChanged).into()
+        widget::Container::new(ui).into()
+       //custom::MeasuredContainer::new(ui, Message::DimensionsChanged).into()
     }
 
     fn theme(&self) -> Self::Theme {
