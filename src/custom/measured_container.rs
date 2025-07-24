@@ -56,13 +56,11 @@ where
         tree.diff_children(std::slice::from_ref(&self.content));
     }
 
-    fn width(&self) -> Length {
-        self.content.as_widget().width()
+    fn size(&self) -> Size<Length> {
+        return Size { width: self.content.as_widget().width(), height: self.content.as_widget().height() }
     }
+    
 
-    fn height(&self) -> Length {
-        self.content.as_widget().height()
-    }
 
     fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
         self.content.as_widget().layout(renderer, limits)

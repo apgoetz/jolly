@@ -105,8 +105,8 @@ impl SearchResults {
             let entry_widget =
                 entry.build_entry(f, searchtext, &self.settings, i == self.selected, *e);
 
-            let mouse_area = custom::MouseArea::new(entry_widget)
-                .on_mouse_enter(crate::Message::EntryHovered(i));
+            let mouse_area = widget::MouseArea::new(entry_widget).on_enter(crate::Message::EntryHovered(i));
+
 
             column = column.push(mouse_area);
         }
