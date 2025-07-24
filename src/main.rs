@@ -45,6 +45,13 @@ pub fn main() -> ExitCode {
     settings.default_text_size = config.settings.ui.common.text_size().into();
     settings.flags = config;
 
+    //probably missing something here about setting windows settings and subscriptions???
+    iced::application("JOLLY BUT YOU ARENT SUPPOSED TO SEE THIS", Jolly::update, Jolly::view)
+    .subscription(Jolly::subscription)
+    .run_with(Jolly::new)
+    .map(|_| ExitCode::SUCCESS)
+        .unwrap_or(ExitCode::FAILURE);
+
     Jolly::run(settings)
         .map(|_| ExitCode::SUCCESS)
         .unwrap_or(ExitCode::FAILURE)
