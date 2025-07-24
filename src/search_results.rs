@@ -1,9 +1,7 @@
 use iced::{advanced, keyboard, widget};
 
-use crate::custom;
 use crate::entry;
 use crate::store;
-use crate::theme;
 use crate::ui;
 
 const PADDING: u16 = 2;
@@ -58,24 +56,25 @@ impl SearchResults {
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
-        let code = match event {
-            keyboard::Event::KeyPressed {
-                key_code: code,
-                modifiers: _,
-            } => code,
-            _ => return,
-        };
 
-        if code == keyboard::KeyCode::Up {
-            if self.selected > 0 {
+        match event {
+            keyboard::Event::KeyPressed{
+                key: keyboard::Key::Named(keyboard::key::Named::ArrowUp),
+                ..
+            } => if self.selected > 0 {
                 self.selected -= 1;
-            }
-        }
-        if code == keyboard::KeyCode::Down {
-            let max_num = self.entries.len();
-            if self.selected + 1 < max_num {
-                self.selected += 1;
-            }
+            },
+            keyboard::Event::KeyPressed{
+                key: keyboard::Key::Named(keyboard::key::Named::ArrowDown),
+                ..
+            } => if self.selected > 0 {
+                let max_num = self.entries.len();
+                if self.selected + 1 < max_num {
+                    self.selected += 1;
+                
+                }
+            },
+            _ => {/* do nothing */}
         }
     }
 
@@ -87,7 +86,6 @@ impl SearchResults {
     ) -> iced::Element<'a, crate::Message, Renderer>
     where
         F: 'static + Copy + Fn(entry::EntryId) -> crate::Message,
-        Renderer: advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
         Renderer: advanced::text::Renderer,
         Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
     {
