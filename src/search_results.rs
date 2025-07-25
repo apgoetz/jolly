@@ -1,4 +1,5 @@
 use iced::{advanced, keyboard, widget};
+use log::trace;
 
 use crate::entry;
 use crate::store;
@@ -68,7 +69,7 @@ impl SearchResults {
             keyboard::Event::KeyPressed{
                 key: keyboard::Key::Named(keyboard::key::Named::ArrowDown),
                 ..
-            } => if self.selected > 0 {
+            } => {
                 let max_num = self.entries.len();
                 if self.selected + 1 < max_num {
                     self.selected += 1;

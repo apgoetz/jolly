@@ -43,6 +43,7 @@ pub enum Message {
     StartedIconWorker(mpsc::Sender<icon::IconCommand>),
     IconReceived(icon::IconType, icon::Icon),
     InitialWindowCreation(window::Id),
+    SearchSubmitted,
 }
 
 #[derive(Debug)]
@@ -167,7 +168,7 @@ impl Jolly {
                     window::gain_focus(id), // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
                 ]);
             }
-            Message::ExternalEvent(event::Event::Keyboard(e)) => {
+             Message::ExternalEvent(event::Event::Keyboard(ref e)) => {
                 if matches!(
                     e,
                     keyboard::Event::KeyReleased {
@@ -177,7 +178,6 @@ impl Jolly {
                 ) {
                     return iced::window::close(self.id.unwrap());
                 }
-                return Task::none();
             }
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Focused => {
                 self.focused_once = true;
@@ -235,7 +235,17 @@ impl Jolly {
                 Task::none()
             }
 
+            Message::SearchSubmitted => {
+                                            let cmd = if let Some(id) = self.search_results.selected() {
+                                self.handle_selection(id)
+                            } else {
+                                iced::window::close(self.id.unwrap())
+                            };
+                            return cmd;
+            }
+
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
+
                 if let keyboard::Event::KeyReleased {
                     key: keyboard::Key::Named(keyname),
                     ..
@@ -309,6 +319,7 @@ impl Jolly {
                     .push(
                         TextInput::new(msg, &self.searchtext)
                             .on_input(Message::SearchTextChanged)
+                            .on_submit(Message::SearchSubmitted)
                             .size(self.settings.ui.search.common.text_size())
                             .id(TEXT_INPUT_ID.clone())
                             .style(|t, s|  theme::text_input::search(t, s))
