@@ -40,7 +40,7 @@ mod windows;
 
 use lazy_static::lazy_static;
 lazy_static! {
-    static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
+    static ref FALLBACK_ICON: Icon = Icon::from_rgba(1, 1, vec![127u8, 127u8, 127u8, 255u8]);
 }
 
 // TODO
@@ -406,31 +406,41 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 
     rtree.render(transform, &mut pixmap.as_mut());
 
-    Ok(Icon::from_pixels(
+    Ok(Icon::from_rgba(
         icon_size,
         icon_size,
-        pixmap.take().leak(),
+        pixmap.take(),
     ))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
     use crate::icon::IconType;
 
     use super::{Icon, IconError, IconInterface, IconSettings};
 
-    pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+    fn hash_icon(icon:&Icon) -> u64 {
+        let mut hash = DefaultHasher::new();
+        match icon {
+            Icon::Bytes(_, b) => b.hash(&mut hash),
+            Icon::Path(_,p) => p.hash(&mut hash),
+            Icon::Rgba { pixels:p,..} => p.hash(&mut hash)
+        }
+        hash.finish()
+    }
 
-        let mut ihash = DefaultHasher::new();
-        let mut fhash = DefaultHasher::new();
-        icon.hash(&mut ihash);
-        ficon.hash(&mut fhash);
-        ihash.finish() == fhash.finish()
+    pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
+        hash_icon(&icon) == hash_icon(&ficon)
     }
 
     fn iconlike(icon: Icon, err_msg: &str) {
+
+      assert!(
+            !hash_eq_icon(&icon, &super::FALLBACK_ICON),
+            "icon hash matches fallback icon, should not occur during happycase"
+        );
         match icon {
             Icon::Path(_,p) => {
                 assert!(p.exists())
@@ -456,10 +466,7 @@ mod tests {
             }
         };
 
-        assert!(
-            !hash_eq_icon(&icon, &super::FALLBACK_ICON),
-            "icon hash matches fallback icon, should not occur during happycase"
-        );
+
     }
 
     #[test]
@@ -489,7 +496,7 @@ mod tests {
 
         impl IconInterface for MockIcon {
             fn get_default_icon(&self) -> Result<crate::icon::Icon, crate::icon::IconError> {
-                Ok(super::Icon::from_pixels(1, 1, &[1, 1, 1, 1]))
+                Ok(super::Icon::from_rgba(1, 1, vec![1, 1, 1, 1]))
             }
 
             fn get_icon_for_file<P: AsRef<std::path::Path>>(
@@ -642,7 +649,7 @@ mod tests {
                 height: h,
                 ..
             }
-            if *w == DEFAULT_ICON_SIZE as u32 && *h == DEFAULT_ICON_SIZE as u32
+            if w == DEFAULT_ICON_SIZE as u32 && h == DEFAULT_ICON_SIZE as u32
         ));
     }
 

@@ -1,16 +1,19 @@
 // contains theme definition for Jolly
 use crate::{platform, ui};
 use iced::application;
+use iced::application::DefaultStyle;
+use iced::daemon::Appearance;
 use iced::overlay::menu;
-use iced::widget::button;
-use iced::widget::container;
-use iced::widget::text;
-use iced::widget::text_input;
 use serde;
 use serde::de::{self, DeserializeSeed, Deserializer, Error, IntoDeserializer, MapAccess, Visitor};
 use serde::Deserialize;
 use std::fmt;
 use toml;
+
+pub mod text;
+pub mod button;
+pub mod text_input;
+pub mod container;
 
 #[derive(Debug, Copy, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -61,6 +64,15 @@ impl Theme {
 
     fn extended_palette(&self) -> iced::theme::palette::Extended {
         iced::theme::palette::Extended::generate(self.palette())
+    }
+}
+
+impl DefaultStyle for Theme {
+    fn default_style(&self) -> application::Appearance {
+        Appearance {
+            background_color: self.background_color.clone().into(),
+            text_color: self.text_color.clone().into(),
+        }
     }
 }
 
@@ -197,7 +209,7 @@ impl From<DefaultTheme> for Theme {
 // text_input::StyleSheet
 // menu::StyleSheet
 // application::Stylesheet
-
+/* 
 impl menu::StyleSheet for Theme {
     type Style = ();
 
@@ -215,7 +227,7 @@ impl menu::StyleSheet for Theme {
         }
     }
 }
-
+ */
 // Stylesheets for Jolly are copied almost exactly verbatim from the iced theme, except for 2 differences
 //
 // + no support for custom themes per widget (style is nil)
@@ -223,7 +235,7 @@ impl menu::StyleSheet for Theme {
 // + colors are tweaked to emphasize primary.base color in palettes
 // instead of primary.strong. This is so that jolly themes can set an
 // accent color that matches their window manager.
-impl application::StyleSheet for Theme {
+/* impl application::StyleSheet for Theme {
     type Style = ();
 
     fn appearance(&self, _style: &Self::Style) -> application::Appearance {
@@ -233,9 +245,11 @@ impl application::StyleSheet for Theme {
             text_color: palette.background.base.text,
         }
     }
-}
+} */
 
-impl text::StyleSheet for Theme {
+
+
+/* impl text::StyleSheet for Theme {
     type Style = iced::theme::Text;
     fn appearance(&self, style: Self::Style) -> text::Appearance {
         let color = match style {
@@ -244,42 +258,7 @@ impl text::StyleSheet for Theme {
         };
         text::Appearance { color: color }
     }
-}
-
-#[derive(Default)]
-pub enum ButtonStyle {
-    #[default]
-    Transparent,
-    Selected,
-}
-
-impl button::StyleSheet for Theme {
-    type Style = ButtonStyle;
-    fn active(&self, style: &Self::Style) -> button::Appearance {
-        match style {
-            ButtonStyle::Transparent => button::Appearance {
-                shadow_offset: iced::Vector::default(),
-                text_color: self.text_color.clone().into(),
-                background: None,
-                border_radius: 0.0.into(),
-                border_width: 0.0,
-                border_color: iced::Color::TRANSPARENT,
-            },
-
-            ButtonStyle::Selected => {
-                let accent_color: iced::Color = self.accent_color.clone().into();
-                button::Appearance {
-                    shadow_offset: iced::Vector::default(),
-                    text_color: self.selected_text_color.clone().into(),
-                    background: Some(accent_color.into()),
-                    border_radius: 5.0.into(),
-                    border_width: 1.0,
-                    border_color: iced::Color::TRANSPARENT,
-                }
-            }
-        }
-    }
-}
+} */
 
 #[derive(Default)]
 pub enum ContainerStyle {
@@ -289,110 +268,8 @@ pub enum ContainerStyle {
     Error,
 }
 
-impl container::StyleSheet for Theme {
-    type Style = ContainerStyle;
-    fn appearance(&self, style: &Self::Style) -> container::Appearance {
-        match style {
-            ContainerStyle::Transparent => iced::Theme::default().appearance(&Default::default()),
 
-            ContainerStyle::Selected => {
-                let accent_color: iced::Color = self.accent_color.clone().into();
-                container::Appearance {
-                    text_color: Some(self.selected_text_color.clone().into()),
-                    background: Some(accent_color.into()),
-                    border_radius: 5.0.into(),
-                    border_width: 1.0,
-                    border_color: iced::Color::TRANSPARENT,
-                }
-            }
 
-            ContainerStyle::Error => {
-                let bg_color: iced::Color = self.background_color.clone().into();
-                container::Appearance {
-                    text_color: Some(self.text_color.clone().into()),
-                    background: Some(bg_color.into()),
-                    border_radius: 5.0.into(),
-                    border_width: 2.0,
-                    border_color: ui::Color::from_str("#D64541").into(),
-                }
-            }
-        }
-    }
-}
-
-impl text_input::StyleSheet for Theme {
-    type Style = ();
-
-    // not used by jolly
-    fn disabled_color(
-        &self,
-        _: &<Self as iced::widget::text_input::StyleSheet>::Style,
-    ) -> iced::Color {
-        todo!()
-    }
-
-    // not used by jolly
-    fn disabled(
-        &self,
-        _: &<Self as iced::widget::text_input::StyleSheet>::Style,
-    ) -> iced::widget::text_input::Appearance {
-        todo!()
-    }
-
-    fn active(&self, _style: &Self::Style) -> text_input::Appearance {
-        let palette = self.extended_palette();
-
-        text_input::Appearance {
-            background: palette.background.base.color.into(),
-            border_radius: 2.0.into(),
-            border_width: 1.0,
-            border_color: palette.background.strong.color,
-            icon_color: Default::default(),
-        }
-    }
-
-    fn hovered(&self, _style: &Self::Style) -> text_input::Appearance {
-        let palette = self.extended_palette();
-
-        text_input::Appearance {
-            background: palette.background.base.color.into(),
-            border_radius: 2.0.into(),
-            border_width: 1.0,
-            border_color: palette.background.base.text,
-            icon_color: Default::default(),
-        }
-    }
-
-    fn focused(&self, _style: &Self::Style) -> text_input::Appearance {
-        let palette = self.extended_palette();
-
-        text_input::Appearance {
-            background: palette.background.base.color.into(),
-            border_radius: 2.0.into(),
-            border_width: 1.0,
-            border_color: palette.primary.base.color,
-            icon_color: Default::default(),
-        }
-    }
-
-    fn placeholder_color(&self, _style: &Self::Style) -> iced::Color {
-        let palette = self.extended_palette();
-
-        palette.background.strong.color
-    }
-
-    fn value_color(&self, _style: &Self::Style) -> iced::Color {
-        let palette = self.extended_palette();
-
-        palette.background.base.text
-    }
-
-    fn selection_color(&self, _style: &Self::Style) -> iced::Color {
-        let palette = self.extended_palette();
-
-        palette.primary.weak.color
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -457,9 +334,10 @@ mod tests {
 
     #[test]
     fn accent_color_used_for_theme() {
+        todo!();
         // test that the major accent color we use actually shows up in the theme.
         // default iced theme uses tweaked colors that dont match
-        use iced::overlay::menu::StyleSheet;
+   /*      use iced::overlay::menu::StyleSheet;
         use iced::widget::text_input::StyleSheet as TextStyleSheet;
         let toml = r#"
 		      accent_color = "darkblue"
@@ -477,6 +355,6 @@ mod tests {
             menu_appearance.selected_background.into()
         );
 
-        assert_eq!(color, text_appearance.border_color);
+        assert_eq!(color, text_appearance.border_color); */
     }
 }

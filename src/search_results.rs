@@ -3,6 +3,7 @@ use iced::{advanced, keyboard, widget};
 use crate::entry;
 use crate::store;
 use crate::ui;
+use crate::Theme;
 
 const PADDING: u16 = 2;
 
@@ -78,16 +79,16 @@ impl SearchResults {
         }
     }
 
-    pub fn view<'a, F, Renderer>(
+    pub fn view<'a, F>(
         &'a self,
         searchtext: &str,
         store: &'a store::Store,
         f: F,
-    ) -> iced::Element<'a, crate::Message, Renderer>
+    ) -> iced::Element<'a, crate::Message, Theme>
     where
         F: 'static + Copy + Fn(entry::EntryId) -> crate::Message,
-        Renderer: advanced::text::Renderer,
-        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
+/*         Renderer: advanced::text::Renderer + 'a,
+        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>, */
     {
         // if we dont have any entries, return an empty search results
         // (if we dont do this, the empty column will still show its
@@ -108,7 +109,7 @@ impl SearchResults {
 
             column = column.push(mouse_area);
         }
-        let element: iced::Element<'_, _, _> = column.into();
+        let element: iced::Element<'_, _, Theme, _> = column.into();
         element
     }
 

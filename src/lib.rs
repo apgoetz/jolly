@@ -159,18 +159,19 @@ impl Jolly {
             Message::InitialWindowCreation(id) =>
             {
                 self.id = Some(id);
-                Task::batch(
+                return Task::batch(
                     [
                         window::change_mode(id,window::Mode::Windowed),
                         window::gain_focus(id)  // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
 
                     ]
-                )
+                );
             }
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
                 if matches!(e, keyboard::Event::KeyReleased { key: keyboard::Key::Named(keyboard::key::Named::Escape), .. }) {
                     return iced::window::close(self.id.unwrap());
                 }
+                return Task::none();
 
             }
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Focused => {
@@ -195,7 +196,7 @@ impl Jolly {
                 self.bounds.width = width;
                 self.bounds.height = height;
 
-                return window::resize(self.id.unwrap(),Size::new(width.ceil() as u32, height.ceil() as u32));
+                return window::resize(self.id.unwrap(),Size::new(width.ceil(), height.ceil()));
             }
             _ => (), // dont care at this point about other messages
         };
@@ -242,14 +243,15 @@ impl Jolly {
                     }
                 };
 
-                if keyboard::Event::CharacterReceived('\r') == e {
+                //TODO see if we need to support this
+/*                 if keyboard::Event::CharacterReceived('\r') == e {
                     let cmd = if let Some(id) = self.search_results.selected() {
                         self.handle_selection(id)
                     } else {
                         iced::window::close(self.id.unwrap())
                     };
                     return cmd;
-                }
+                } */
 
                 if let keyboard::Event::ModifiersChanged(m) = e {
                     self.modifiers = m;
@@ -284,10 +286,10 @@ impl Jolly {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message, Theme, Renderer> {
+    pub fn view(&self) -> Element<'_, Message, Theme> {
         use StoreLoadedState::*;
 
-        let ui: Element<_, Theme, Renderer> = match &self.store_state {
+        let ui: Element<_, Theme> = match &self.store_state {
             LoadSucceeded(store, msg) => widget::Column::new()
                 .push(
                     TextInput::new(msg, &self.searchtext)
@@ -304,26 +306,28 @@ impl Jolly {
             Pending => Text::new("Loading Bookmarks...").into(),
             Finished(err) => {
                 let errtext = Text::new(err.to_string()).shaping(Shaping::Advanced);
-                let style;
                 let children;
+                
                 if let error::Error::FinalMessage(_) = err {
-                    style = theme::ContainerStyle::Transparent;
                     children = vec![errtext.into()];
                 } else {
-                    style = theme::ContainerStyle::Error;
                     let title = Text::new("Oops, Jolly has encountered an Error...")
-                        .color(ui::Color::from_str("#D64541").into())
+                        .color(ui::Color::from_str("#D64541"))
                         .size(2 * self.settings.ui.search.common.text_size());
                     children = vec![title.into(), errtext.into()];
                 }
 
                 let col = widget::Column::with_children(children).spacing(5);
 
-                iced::widget::container::Container::new(col)
-                    .style(style)
+                let container = iced::widget::container::Container::new(col)
                     .padding(5)
-                    .width(Length::Fill)
-                    .into()
+                    .width(Length::Fill);
+                if let error::Error::FinalMessage(_) = err {
+                    container.style(theme::container::transparent)
+                } else {
+                    container.style(theme::container::error)
+                }.into()
+                    
             }
         };
         widget::Container::new(ui).into()
