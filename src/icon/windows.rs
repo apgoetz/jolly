@@ -430,10 +430,10 @@ unsafe fn get_icon_from_hbm(hbm: HBITMAP) -> Result<Icon, IconError> {
         std::mem::swap(b, r);
     }
 
-    Ok(Icon::from_pixels(
+    Ok(Icon::from_rgba(
         cbitmap.bmWidth.try_into().unwrap(),
         cbitmap.bmHeight.try_into().unwrap(),
-        pixels.leak(), // TODO fix leak
+        pixels, // TODO fix leak
     ))
 }
 
