@@ -13,7 +13,7 @@ impl Catalog for Theme {
     }
 }
 
-fn search(theme: &Theme, status:Status) -> Style {
+pub fn search(theme: &Theme, status:Status) -> Style {
     let palette = theme.extended_palette();
     let bordercolor =
     match status {

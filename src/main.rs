@@ -48,6 +48,7 @@ pub fn main() -> ExitCode {
     .subscription(Jolly::subscription)
     .settings(settings)
     .window(wsettings)
+    .theme(Jolly::theme)
     .run_with(||Jolly::new(config))
     .map(|_| ExitCode::SUCCESS)
         .unwrap_or(ExitCode::FAILURE)

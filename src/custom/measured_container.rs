@@ -1,28 +1,32 @@
 //! Container that determines the min size of its content, and returns
 //! it to the application to allow it to adjust window size
 
-use iced::event;
+use iced::{event, Vector};
 
 use iced::advanced::widget::{tree, Operation, Tree};
 use iced::advanced::{self, overlay};
 use iced::advanced::{layout, renderer, Clipboard, Layout, Shell, Widget};
 use iced::mouse;
 use iced::{Element, Event, Length, Rectangle, Size};
+use log::trace;
 
-pub struct MeasuredContainer<'a, Message, Renderer, F>
+pub struct MeasuredContainer<'a, Message, F, Theme, Renderer = iced::Renderer>
 where
     F: 'static + Copy + Fn(f32, f32) -> Message,
+    Renderer: iced::advanced::Renderer
 {
-    content: Element<'a, Message, Renderer>,
+    content: Element<'a, Message, Theme, Renderer>,
     msg_builder: F,
 }
 
-impl<'a, Message, Renderer, F> MeasuredContainer<'a, Message, Renderer, F>
+impl<'a, Message, Renderer, Theme, F> MeasuredContainer<'a, Message, F, Theme, Renderer>
 where
     F: 'static + Copy + Fn(f32, f32) -> Message,
+    Renderer: iced::advanced::Renderer
+
 {
     /// Creates a [`MeasuredContainer`] with the given content.
-    pub fn new(content: impl Into<Element<'a, Message, Renderer>>, callback: F) -> Self {
+    pub fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>, callback: F) -> Self {
         MeasuredContainer {
             content: content.into(),
             msg_builder: callback,
@@ -33,8 +37,8 @@ where
 #[derive(Default)]
 struct State(Option<Rectangle>); // no state
 
-impl<'a, Message, Renderer, F> Widget<Message, Renderer>
-    for MeasuredContainer<'a, Message, Renderer, F>
+impl<'a, Message, Theme, Renderer, F> Widget<Message, Theme, Renderer>
+    for MeasuredContainer<'a, Message, F, Theme, Renderer>
 where
     Renderer: advanced::Renderer,
     Message: Clone,
@@ -49,6 +53,7 @@ where
     }
 
     fn children(&self) -> Vec<Tree> {
+        
         vec![Tree::new(&self.content)]
     }
 
@@ -57,13 +62,13 @@ where
     }
 
     fn size(&self) -> Size<Length> {
-        return Size { width: self.content.as_widget().width(), height: self.content.as_widget().height() }
+        self.content.as_widget().size()
     }
     
 
 
-    fn layout(&self, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        self.content.as_widget().layout(renderer, limits)
+    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
+        self.content.as_widget().layout(&mut tree.children[0], renderer, limits)
     }
 
     fn operate(
@@ -71,7 +76,7 @@ where
         tree: &mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        operation: &mut dyn Operation<Message>,
+        operation: &mut dyn Operation,
     ) {
         self.content
             .as_widget()
@@ -91,18 +96,21 @@ where
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle<f32>,
     ) -> event::Status {
-        let state: &mut State = tree.state.downcast_mut();
+        let rstate: &State = tree.state.downcast_ref();
 
-        let (orig_width, orig_height) = match state.0 {
+        let (orig_width, orig_height) = match rstate.0 {
             None => (layout.bounds().width, layout.bounds().height),
             Some(r) => (r.width, r.height),
         };
 
         let limits = layout::Limits::new(Size::ZERO, Size::new(orig_width, f32::INFINITY));
 
-        let bounds = self.layout(renderer, &limits).bounds();
+        let bounds = self.layout(tree, renderer, &limits).bounds();
         let new_width = bounds.width;
         let new_height = bounds.height;
+
+        let state: &mut State = tree.state.downcast_mut();
+
 
         if new_height != orig_height || new_width != orig_width {
             shell.publish((self.msg_builder)(new_width, new_height));
@@ -145,7 +153,7 @@ where
         &self,
         tree: &Tree,
         renderer: &mut Renderer,
-        theme: &Renderer::Theme,
+        theme: &Theme,
         renderer_style: &renderer::Style,
         layout: Layout<'_>,
         cursor_position: mouse::Cursor,
@@ -167,21 +175,25 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-    ) -> Option<overlay::Element<'b, Message, Renderer>> {
+        translation: Vector
+    ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content
             .as_widget_mut()
-            .overlay(&mut tree.children[0], layout, renderer)
+            .overlay(&mut tree.children[0], layout, renderer, translation)
     }
 }
 
-impl<'a, Message, Renderer, F> From<MeasuredContainer<'a, Message, Renderer, F>>
-    for Element<'a, Message, Renderer>
+
+
+impl<'a, Message, F, Theme, Renderer> From<MeasuredContainer<'a, Message, F, Theme, Renderer>>
+    for Element<'a, Message, Theme, Renderer>
 where
     Message: 'a + Clone,
     Renderer: 'a + advanced::Renderer,
+    Theme: 'a,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
-    fn from(area: MeasuredContainer<'a, Message, Renderer, F>) -> Element<'a, Message, Renderer> {
+    fn from(area: MeasuredContainer<'a, Message, F, Theme, Renderer>) -> Element<'a, Message, Theme, Renderer> {
         Element::new(area)
     }
 }
