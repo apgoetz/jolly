@@ -4,9 +4,6 @@ use std::error;
 use std::fmt;
 use std::ops::Deref;
 
-use iced::advanced;
-use iced::widget::Button;
-use iced::Element;
 use serde::Deserialize;
 use url::Url;
 
@@ -102,7 +99,7 @@ pub struct StoreEntry {
 }
 
 impl std::hash::Hash for StoreEntry {
-     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.name.hash(state);
         self.description.hash(state);
         self.entry.hash(state);
@@ -335,14 +332,15 @@ impl StoreEntry {
     where
         F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
-/*         Renderer: advanced::text::Renderer,
+        /*         Renderer: advanced::text::Renderer,
         Renderer: advanced::image::Renderer<Handle = iced::widget::image::Handle>, */
     {
-        let text_color:iced::Color = if selected {
+        let text_color: iced::Color = if selected {
             settings.theme.selected_text_color.clone()
         } else {
             settings.theme.text_color.clone()
-        }.into();
+        }
+        .into();
 
         let button_style = if selected {
             theme::button::selected
@@ -373,8 +371,7 @@ impl StoreEntry {
                             .align_y(iced::alignment::Vertical::Center)
                             .shaping(iced::widget::text::Shaping::Advanced)
                             .into()
-                    })
-                    ;//.collect::<Vec<Element<_, Theme>>>(); //TODO: get rid of this design with a collect as it forces us to be much more specific about our theme when we dont wanna
+                    }); //.collect::<Vec<Element<_, Theme>>>(); //TODO: get rid of this design with a collect as it forces us to be much more specific about our theme when we dont wanna
                 iced::widget::Column::with_children(paragraphs).width(iced::Length::Fill)
             }
             None => iced::widget::Column::new(),
@@ -408,9 +405,9 @@ impl StoreEntry {
         // let _container =
         //     iced::widget::container::Container::new(title_text).padding::<u16>(0u16.into());
 
-        let button= iced::widget::button::Button::new(column)
+        let button = iced::widget::button::Button::new(column)
             .on_press(message_func(my_id))
-            .style(move |theme: &Theme, status|button_style(theme,status))
+            .style(move |theme: &Theme, status| button_style(theme, status))
             .width(iced::Length::Fill);
 
         button.into()

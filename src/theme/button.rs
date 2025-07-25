@@ -1,6 +1,8 @@
-
-use iced::{widget::button::{Catalog, Status, Style, StyleFn}, Background, Border, Color};
 use super::Theme;
+use iced::{
+    widget::button::{Catalog, Status, Style, StyleFn},
+    Background, Border, Color,
+};
 
 impl Catalog for Theme {
     type Class<'a> = StyleFn<'a, Theme>;
@@ -18,7 +20,11 @@ pub fn transparent(theme: &Theme, _status: Status) -> Style {
     Style {
         background: None,
         text_color: theme.text_color.clone().into(),
-        border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..Default::default()
     }
 }
@@ -27,18 +33,16 @@ pub fn selected(theme: &Theme, _status: Status) -> Style {
     Style {
         background: Some(Background::Color(theme.accent_color.clone().into())),
         text_color: theme.selected_text_color.clone().into(),
-        border: Border { color: Color::TRANSPARENT, width: 1.0, radius: 5.0.into() },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 1.0,
+            radius: 5.0.into(),
+        },
         ..Default::default()
     }
 }
 
-#[derive(Default)]
-pub enum ButtonStyle {
-    #[default]
-    Transparent,
-    Selected,
-}
-/* 
+/*
 impl button::StyleSheet for Theme {
     type Style = ButtonStyle;
     fn active(&self, style: &Self::Style) -> button::Appearance {

@@ -426,7 +426,7 @@ unsafe fn get_icon_from_hbm(hbm: HBITMAP) -> Result<Icon, IconError> {
     pixels.set_len(pixels.capacity());
 
     for chunk in pixels.chunks_exact_mut(4) {
-        let [b, _, r, _] = chunk else {unreachable!()};
+        let [b, _, r, _] = chunk else { unreachable!() };
         std::mem::swap(b, r);
     }
 

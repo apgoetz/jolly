@@ -1,5 +1,8 @@
-use iced::{widget::container::{Catalog, Style, StyleFn}, Border};
 use crate::ui;
+use iced::{
+    widget::container::{Catalog, Style, StyleFn},
+    Border,
+};
 
 pub use iced::widget::container::transparent;
 
@@ -17,7 +20,8 @@ impl Catalog for Theme {
     }
 }
 
-pub fn selected(theme: &Theme) -> Style {
+//TODO DELETE dead code?
+/* pub fn selected(theme: &Theme) -> Style {
     Style {
         text_color: Some(theme.text_color.clone().into()),
         background: Some(iced::Background::Color(theme.accent_color.clone().into())),
@@ -25,17 +29,23 @@ pub fn selected(theme: &Theme) -> Style {
         shadow: Default::default(),
     }
 }
-
+ */
 pub fn error(theme: &Theme) -> Style {
     Style {
         text_color: Some(theme.text_color.clone().into()),
-        background: Some(iced::Background::Color(theme.background_color.clone().into())),
-        border: Border{ color: ui::Color::from_str("#D64541").into(), width: 2.0, radius: 5.0.into() },
+        background: Some(iced::Background::Color(
+            theme.background_color.clone().into(),
+        )),
+        border: Border {
+            color: ui::Color::from_str("#D64541").into(),
+            width: 2.0,
+            radius: 5.0.into(),
+        },
         shadow: Default::default(),
     }
 }
 
-/* 
+/*
 impl container::StyleSheet for Theme {
     type Style = ContainerStyle;
     fn appearance(&self, style: &Self::Style) -> container::Appearance {

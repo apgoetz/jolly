@@ -3,17 +3,16 @@ use crate::{platform, ui};
 use iced::application;
 use iced::application::DefaultStyle;
 use iced::daemon::Appearance;
-use iced::overlay::menu;
 use serde;
 use serde::de::{self, DeserializeSeed, Deserializer, Error, IntoDeserializer, MapAccess, Visitor};
 use serde::Deserialize;
 use std::fmt;
 use toml;
 
-pub mod text;
 pub mod button;
-pub mod text_input;
 pub mod container;
+pub mod text;
+pub mod text_input;
 
 #[derive(Debug, Copy, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -209,7 +208,7 @@ impl From<DefaultTheme> for Theme {
 // text_input::StyleSheet
 // menu::StyleSheet
 // application::Stylesheet
-/* 
+/*
 impl menu::StyleSheet for Theme {
     type Style = ();
 
@@ -247,8 +246,6 @@ impl menu::StyleSheet for Theme {
     }
 } */
 
-
-
 /* impl text::StyleSheet for Theme {
     type Style = iced::theme::Text;
     fn appearance(&self, style: Self::Style) -> text::Appearance {
@@ -260,19 +257,9 @@ impl menu::StyleSheet for Theme {
     }
 } */
 
-#[derive(Default)]
-pub enum ContainerStyle {
-    #[default]
-    Transparent,
-    Selected,
-    Error,
-}
-
-
-
-
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -334,27 +321,22 @@ mod tests {
 
     #[test]
     fn accent_color_used_for_theme() {
-        todo!();
-        // test that the major accent color we use actually shows up in the theme.
-        // default iced theme uses tweaked colors that dont match
-   /*      use iced::overlay::menu::StyleSheet;
-        use iced::widget::text_input::StyleSheet as TextStyleSheet;
         let toml = r#"
-		      accent_color = "darkblue"
+              accent_color = "darkblue"
                    "#;
 
         let color: iced::Color = ui::Color::from_str("darkblue").into();
 
         let theme: Theme = toml::from_str(toml).unwrap();
 
-        let menu_appearance: menu::Appearance = theme.appearance(&());
-        let text_appearance: text_input::Appearance = theme.focused(&());
-
-        assert_eq!(
-            iced::Background::Color(color),
-            menu_appearance.selected_background.into()
-        );
-
-        assert_eq!(color, text_appearance.border_color); */
+        if let iced::Background::Color(c) =
+            button::selected(&theme, iced::widget::button::Status::Active)
+                .background
+                .unwrap()
+        {
+            assert_eq!(c, color);
+        } else {
+            panic!("background is not a color for button");
+        }
     }
 }

@@ -1,5 +1,4 @@
-use iced::{advanced, keyboard, widget};
-use log::trace;
+use iced::{keyboard, widget};
 
 use crate::entry;
 use crate::store;
@@ -58,25 +57,25 @@ impl SearchResults {
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
-
         match event {
-            keyboard::Event::KeyPressed{
+            keyboard::Event::KeyPressed {
                 key: keyboard::Key::Named(keyboard::key::Named::ArrowUp),
                 ..
-            } => if self.selected > 0 {
-                self.selected -= 1;
-            },
-            keyboard::Event::KeyPressed{
+            } => {
+                if self.selected > 0 {
+                    self.selected -= 1;
+                }
+            }
+            keyboard::Event::KeyPressed {
                 key: keyboard::Key::Named(keyboard::key::Named::ArrowDown),
                 ..
             } => {
                 let max_num = self.entries.len();
                 if self.selected + 1 < max_num {
                     self.selected += 1;
-                
                 }
-            },
-            _ => {/* do nothing */}
+            }
+            _ => { /* do nothing */ }
         }
     }
 
@@ -88,7 +87,7 @@ impl SearchResults {
     ) -> iced::Element<'a, crate::Message, Theme>
     where
         F: 'static + Copy + Fn(entry::EntryId) -> crate::Message,
-/*         Renderer: advanced::text::Renderer + 'a,
+        /*         Renderer: advanced::text::Renderer + 'a,
         Renderer: advanced::image::Renderer<Handle = widget::image::Handle>, */
     {
         // if we dont have any entries, return an empty search results
@@ -105,8 +104,8 @@ impl SearchResults {
             let entry_widget =
                 entry.build_entry(f, searchtext, &self.settings, i == self.selected, *e);
 
-            let mouse_area = widget::MouseArea::new(entry_widget).on_enter(crate::Message::EntryHovered(i));
-
+            let mouse_area =
+                widget::MouseArea::new(entry_widget).on_enter(crate::Message::EntryHovered(i));
 
             column = column.push(mouse_area);
         }

@@ -12,7 +12,7 @@ use iced::widget::text::Shaping;
 use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
 use iced::{clipboard, event, keyboard, widget, window};
-use iced::{executor, Element, Length, Renderer, Size, Task};
+use iced::{Element, Length, Size, Task};
 use lazy_static;
 use std::sync::mpsc;
 
@@ -116,7 +116,6 @@ impl Jolly {
         }
     }
 }
-type Executor = executor::Default;
 type Theme = theme::Theme;
 type Flags = config::Config;
 impl Jolly {
@@ -148,10 +147,6 @@ impl Jolly {
         )
     }
 
-    fn title(&self) -> String {
-        String::from("jolly")
-    }
-
     pub fn theme(&self) -> theme::Theme {
         self.settings.ui.theme.clone()
     }
@@ -168,7 +163,7 @@ impl Jolly {
                     window::gain_focus(id), // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
                 ]);
             }
-             Message::ExternalEvent(event::Event::Keyboard(ref e)) => {
+            Message::ExternalEvent(event::Event::Keyboard(ref e)) => {
                 if matches!(
                     e,
                     keyboard::Event::KeyReleased {
@@ -206,7 +201,6 @@ impl Jolly {
                 } else {
                     return Task::none();
                 }
-                
             }
             _ => (), // dont care at this point about other messages
         };
@@ -236,16 +230,15 @@ impl Jolly {
             }
 
             Message::SearchSubmitted => {
-                                            let cmd = if let Some(id) = self.search_results.selected() {
-                                self.handle_selection(id)
-                            } else {
-                                iced::window::close(self.id.unwrap())
-                            };
-                            return cmd;
+                let cmd = if let Some(id) = self.search_results.selected() {
+                    self.handle_selection(id)
+                } else {
+                    iced::window::close(self.id.unwrap())
+                };
+                return cmd;
             }
 
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
-
                 if let keyboard::Event::KeyReleased {
                     key: keyboard::Key::Named(keyname),
                     ..
@@ -322,7 +315,7 @@ impl Jolly {
                             .on_submit(Message::SearchSubmitted)
                             .size(self.settings.ui.search.common.text_size())
                             .id(TEXT_INPUT_ID.clone())
-                            .style(|t, s|  theme::text_input::search(t, s))
+                            .style(|t, s| theme::text_input::search(t, s))
                             .padding(self.settings.ui.search.padding), //TODO add on_submit
                     )
                     .push(self.search_results.view(
@@ -359,7 +352,7 @@ impl Jolly {
                 .into()
             }
         };
-        
+
         //widget::Container::new(ui).into()
         custom::MeasuredContainer::new(ui, Message::DimensionsChanged).into()
     }

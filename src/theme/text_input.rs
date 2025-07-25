@@ -1,5 +1,8 @@
-use iced::{widget::text_input::{Catalog, Status, Style, StyleFn}, Border};
 use super::Theme;
+use iced::{
+    widget::text_input::{Catalog, Status, Style, StyleFn},
+    Border,
+};
 
 impl Catalog for Theme {
     type Class<'a> = StyleFn<'a, Self>;
@@ -13,25 +16,29 @@ impl Catalog for Theme {
     }
 }
 
-pub fn search(theme: &Theme, status:Status) -> Style {
+pub fn search(theme: &Theme, status: Status) -> Style {
     let palette = theme.extended_palette();
-    let bordercolor =
-    match status {
+    let bordercolor = match status {
         Status::Active => palette.background.strong.color,
         Status::Hovered => palette.background.base.text,
         Status::Focused => palette.primary.base.color,
         Status::Disabled => todo!(),
     };
-    Style{ background: iced::Background::Color(palette.background.base.color.into()), 
-            border: Border{ color: bordercolor, width: 1.0, radius: 2.0.into() }, 
-            icon: Default::default(), 
-            placeholder: palette.background.strong.color, 
-            value: palette.background.base.text, 
-            selection: palette.primary.weak.color }
-
+    Style {
+        background: iced::Background::Color(palette.background.base.color.into()),
+        border: Border {
+            color: bordercolor,
+            width: 1.0,
+            radius: 2.0.into(),
+        },
+        icon: Default::default(),
+        placeholder: palette.background.strong.color,
+        value: palette.background.base.text,
+        selection: palette.primary.weak.color,
+    }
 }
 
-/* 
+/*
 impl text_input::StyleSheet for Theme {
     type Style = ();
 

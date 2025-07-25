@@ -8,12 +8,11 @@ use iced::advanced::{self, overlay};
 use iced::advanced::{layout, renderer, Clipboard, Layout, Shell, Widget};
 use iced::mouse;
 use iced::{Element, Event, Length, Rectangle, Size};
-use log::trace;
 
 pub struct MeasuredContainer<'a, Message, F, Theme, Renderer = iced::Renderer>
 where
     F: 'static + Copy + Fn(f32, f32) -> Message,
-    Renderer: iced::advanced::Renderer
+    Renderer: iced::advanced::Renderer,
 {
     content: Element<'a, Message, Theme, Renderer>,
     msg_builder: F,
@@ -22,8 +21,7 @@ where
 impl<'a, Message, Renderer, Theme, F> MeasuredContainer<'a, Message, F, Theme, Renderer>
 where
     F: 'static + Copy + Fn(f32, f32) -> Message,
-    Renderer: iced::advanced::Renderer
-
+    Renderer: iced::advanced::Renderer,
 {
     /// Creates a [`MeasuredContainer`] with the given content.
     pub fn new(content: impl Into<Element<'a, Message, Theme, Renderer>>, callback: F) -> Self {
@@ -53,7 +51,6 @@ where
     }
 
     fn children(&self) -> Vec<Tree> {
-        
         vec![Tree::new(&self.content)]
     }
 
@@ -64,11 +61,16 @@ where
     fn size(&self) -> Size<Length> {
         self.content.as_widget().size()
     }
-    
 
-
-    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
-        self.content.as_widget().layout(&mut tree.children[0], renderer, limits)
+    fn layout(
+        &self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
+        self.content
+            .as_widget()
+            .layout(&mut tree.children[0], renderer, limits)
     }
 
     fn operate(
@@ -110,7 +112,6 @@ where
         let new_height = bounds.height;
 
         let state: &mut State = tree.state.downcast_mut();
-
 
         if new_height != orig_height || new_width != orig_width {
             shell.publish((self.msg_builder)(new_width, new_height));
@@ -175,15 +176,13 @@ where
         tree: &'b mut Tree,
         layout: Layout<'_>,
         renderer: &Renderer,
-        translation: Vector
+        translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         self.content
             .as_widget_mut()
             .overlay(&mut tree.children[0], layout, renderer, translation)
     }
 }
-
-
 
 impl<'a, Message, F, Theme, Renderer> From<MeasuredContainer<'a, Message, F, Theme, Renderer>>
     for Element<'a, Message, Theme, Renderer>
@@ -193,7 +192,9 @@ where
     Theme: 'a,
     F: 'static + Copy + Fn(f32, f32) -> Message,
 {
-    fn from(area: MeasuredContainer<'a, Message, F, Theme, Renderer>) -> Element<'a, Message, Theme, Renderer> {
+    fn from(
+        area: MeasuredContainer<'a, Message, F, Theme, Renderer>,
+    ) -> Element<'a, Message, Theme, Renderer> {
         Element::new(area)
     }
 }

@@ -104,8 +104,6 @@ impl<T> Context<T> for Option<T> {
     }
 }
 
-trait IconImpl {}
-
 // defines functions that must be implemented for every operating
 // system in order implement icons in jolly
 trait IconInterface {
@@ -406,11 +404,7 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 
     rtree.render(transform, &mut pixmap.as_mut());
 
-    Ok(Icon::from_rgba(
-        icon_size,
-        icon_size,
-        pixmap.take(),
-    ))
+    Ok(Icon::from_rgba(icon_size, icon_size, pixmap.take()))
 }
 
 #[cfg(test)]
@@ -421,12 +415,12 @@ mod tests {
 
     use super::{Icon, IconError, IconInterface, IconSettings};
 
-    fn hash_icon(icon:&Icon) -> u64 {
+    fn hash_icon(icon: &Icon) -> u64 {
         let mut hash = DefaultHasher::new();
         match icon {
             Icon::Bytes(_, b) => b.hash(&mut hash),
-            Icon::Path(_,p) => p.hash(&mut hash),
-            Icon::Rgba { pixels:p,..} => p.hash(&mut hash)
+            Icon::Path(_, p) => p.hash(&mut hash),
+            Icon::Rgba { pixels: p, .. } => p.hash(&mut hash),
         }
         hash.finish()
     }
@@ -436,16 +430,15 @@ mod tests {
     }
 
     fn iconlike(icon: Icon, err_msg: &str) {
-
-      assert!(
+        assert!(
             !hash_eq_icon(&icon, &super::FALLBACK_ICON),
             "icon hash matches fallback icon, should not occur during happycase"
         );
         match icon {
-            Icon::Path(_,p) => {
+            Icon::Path(_, p) => {
                 assert!(p.exists())
             }
-            Icon::Bytes(_,bytes) => {
+            Icon::Bytes(_, bytes) => {
                 assert!(bytes.len() > 0)
             }
             Icon::Rgba {
@@ -465,8 +458,6 @@ mod tests {
                 )
             }
         };
-
-
     }
 
     #[test]
@@ -633,7 +624,7 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(pbm_icon, Icon::Path(_,_)));
+        assert!(matches!(pbm_icon, Icon::Path(_, _)));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
