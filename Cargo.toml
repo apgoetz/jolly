@@ -10,7 +10,7 @@ repository = "https://github.com/apgoetz/jolly"
 readme = "README.md"
 keywords = ["launcher","bookmarks", "iced"]
 exclude = ["docs/"]
-rust-version = "1.70"
+rust-version = "1.85"
 
 [dependencies]
 iced = { version = "0.13.1", features = ["image", "advanced"] }
