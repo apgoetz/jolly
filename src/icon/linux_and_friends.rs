@@ -197,7 +197,7 @@ mod tests {
     use tempfile;
 
     use super::*;
-    use iced::advanced::image::Data;
+    use iced::advanced::image::Handle;
 
     // helper struct to allow building mock xdg data for testing
     struct MockXdg(tempfile::TempDir);
@@ -324,13 +324,6 @@ mod tests {
             .get_icon_for_iname(svg_icon.as_os_str().to_str().unwrap())
             .unwrap();
         // expect pixel data from the icon
-        assert!(matches!(
-            icon.data(),
-            Data::Rgba {
-                width: _,
-                height: _,
-                pixels: _
-            }
-        ));
+        assert!(matches!(icon, Handle::Rgba { .. }));
     }
 }
