@@ -103,7 +103,7 @@ unsafe fn image2icon(image: &mut Object) -> Result<Icon, IconError> {
     // copies
     let pixels = Vec::from(cgicon.data().bytes());
 
-    Ok(Icon::from_pixels(h, w, pixels.leak()))
+    Ok(Icon::from_rgba(h, w, pixels))
 }
 
 unsafe fn icon_for_file(path: NSString) -> Result<Icon, IconError> {

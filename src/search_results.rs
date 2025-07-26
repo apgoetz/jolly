@@ -1,10 +1,9 @@
-use iced::{advanced, keyboard, widget};
+use iced::{keyboard, widget};
 
-use crate::custom;
 use crate::entry;
 use crate::store;
-use crate::theme;
 use crate::ui;
+use crate::Theme;
 
 const PADDING: u16 = 2;
 
@@ -58,38 +57,38 @@ impl SearchResults {
     }
 
     pub fn handle_kb(&mut self, event: keyboard::Event) {
-        let code = match event {
+        match event {
             keyboard::Event::KeyPressed {
-                key_code: code,
-                modifiers: _,
-            } => code,
-            _ => return,
-        };
-
-        if code == keyboard::KeyCode::Up {
-            if self.selected > 0 {
-                self.selected -= 1;
+                key: keyboard::Key::Named(keyboard::key::Named::ArrowUp),
+                ..
+            } => {
+                if self.selected > 0 {
+                    self.selected -= 1;
+                }
             }
-        }
-        if code == keyboard::KeyCode::Down {
-            let max_num = self.entries.len();
-            if self.selected + 1 < max_num {
-                self.selected += 1;
+            keyboard::Event::KeyPressed {
+                key: keyboard::Key::Named(keyboard::key::Named::ArrowDown),
+                ..
+            } => {
+                let max_num = self.entries.len();
+                if self.selected + 1 < max_num {
+                    self.selected += 1;
+                }
             }
+            _ => { /* do nothing */ }
         }
     }
 
-    pub fn view<'a, F, Renderer>(
+    pub fn view<'a, F>(
         &'a self,
         searchtext: &str,
         store: &'a store::Store,
         f: F,
-    ) -> iced::Element<'a, crate::Message, Renderer>
+    ) -> iced::Element<'a, crate::Message, Theme>
     where
         F: 'static + Copy + Fn(entry::EntryId) -> crate::Message,
-        Renderer: advanced::renderer::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: advanced::text::Renderer,
-        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>,
+        /*         Renderer: advanced::text::Renderer + 'a,
+        Renderer: advanced::image::Renderer<Handle = widget::image::Handle>, */
     {
         // if we dont have any entries, return an empty search results
         // (if we dont do this, the empty column will still show its
@@ -105,12 +104,12 @@ impl SearchResults {
             let entry_widget =
                 entry.build_entry(f, searchtext, &self.settings, i == self.selected, *e);
 
-            let mouse_area = custom::MouseArea::new(entry_widget)
-                .on_mouse_enter(crate::Message::EntryHovered(i));
+            let mouse_area =
+                widget::MouseArea::new(entry_widget).on_enter(crate::Message::EntryHovered(i));
 
             column = column.push(mouse_area);
         }
-        let element: iced::Element<'_, _, _> = column.into();
+        let element: iced::Element<'_, _, Theme, _> = column.into();
         element
     }
 

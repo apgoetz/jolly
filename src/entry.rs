@@ -4,13 +4,13 @@ use std::error;
 use std::fmt;
 use std::ops::Deref;
 
-use iced::advanced;
 use serde::Deserialize;
 use url::Url;
 
 use crate::icon::Icon;
 use crate::theme;
 use crate::ui;
+use crate::Theme;
 use crate::{icon, platform};
 
 // these are the weights for the different kind of matches.
@@ -87,7 +87,7 @@ enum Keyword {
     EscapedKeyword(String),
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone)]
 pub struct StoreEntry {
     name: String,
     description: Option<String>,
@@ -96,6 +96,16 @@ pub struct StoreEntry {
     keyword: Keyword,
     icon_type: icon::IconType,
     icon: Option<Icon>,
+}
+
+impl std::hash::Hash for StoreEntry {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        self.description.hash(state);
+        self.entry.hash(state);
+        self.tags.hash(state);
+        self.keyword.hash(state);
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -311,40 +321,40 @@ impl StoreEntry {
         func(&selection).map_err(Error::PlatformError)
     }
 
-    pub fn build_entry<'a, F, Message, Renderer>(
+    pub fn build_entry<'a, F, Message>(
         &'a self,
         message_func: F,
         searchtext: &str,
         settings: &ui::UISettings,
         selected: bool,
         my_id: EntryId,
-    ) -> iced::Element<'a, Message, Renderer>
+    ) -> iced::Element<'a, Message, theme::Theme>
     where
         F: 'static + Copy + Fn(EntryId) -> Message,
         Message: 'static + Clone,
-        Renderer: advanced::Renderer<Theme = theme::Theme> + 'a,
-        Renderer: advanced::text::Renderer,
-        Renderer: advanced::image::Renderer<Handle = iced::widget::image::Handle>,
+        /*         Renderer: advanced::text::Renderer,
+        Renderer: advanced::image::Renderer<Handle = iced::widget::image::Handle>, */
     {
-        let text_color = if selected {
+        let text_color: iced::Color = if selected {
             settings.theme.selected_text_color.clone()
         } else {
             settings.theme.text_color.clone()
-        };
+        }
+        .into();
 
         let button_style = if selected {
-            theme::ButtonStyle::Selected
+            theme::button::selected
         } else {
-            theme::ButtonStyle::Transparent
+            theme::button::transparent
         };
 
         let text_color: iced::Color = text_color.into();
 
         let title_text = iced::widget::text::Text::new(self.format_name(searchtext))
             .size(settings.entry.common.text_size())
-            .style(text_color)
-            .horizontal_alignment(iced::alignment::Horizontal::Left)
-            .vertical_alignment(iced::alignment::Vertical::Center)
+            .color(text_color)
+            .align_x(iced::alignment::Horizontal::Left)
+            .align_y(iced::alignment::Vertical::Center)
             .shaping(iced::widget::text::Shaping::Advanced);
 
         let description = match &self.description {
@@ -356,13 +366,12 @@ impl StoreEntry {
                     .map(|paragraph| {
                         iced::widget::text::Text::new(paragraph)
                             .size(settings.entry.description_size)
-                            .style(iced::Color::from(text_color))
-                            .horizontal_alignment(iced::alignment::Horizontal::Left)
-                            .vertical_alignment(iced::alignment::Vertical::Center)
+                            .color(iced::Color::from(text_color))
+                            .align_x(iced::alignment::Horizontal::Left)
+                            .align_y(iced::alignment::Vertical::Center)
                             .shaping(iced::widget::text::Shaping::Advanced)
                             .into()
-                    })
-                    .collect();
+                    }); //.collect::<Vec<Element<_, Theme>>>(); //TODO: get rid of this design with a collect as it forces us to be much more specific about our theme when we dont wanna
                 iced::widget::Column::with_children(paragraphs).width(iced::Length::Fill)
             }
             None => iced::widget::Column::new(),
@@ -383,7 +392,7 @@ impl StoreEntry {
                 (settings.entry.common.text_size() + 4) as f32,
             ))
             .spacing(2)
-            .align_items(iced::Alignment::Center)
+            .align_y(iced::Center)
             .push(icon)
             .push(title_text);
 
@@ -398,11 +407,10 @@ impl StoreEntry {
 
         let button = iced::widget::button::Button::new(column)
             .on_press(message_func(my_id))
-            .style(button_style)
+            .style(move |theme: &Theme, status| button_style(theme, status))
             .width(iced::Length::Fill);
 
-        let element: iced::Element<'_, _, _> = button.into();
-        element
+        button.into()
     }
 
     // pull out the icon type of this entry in preparation for

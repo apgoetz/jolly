@@ -40,7 +40,7 @@ mod windows;
 
 use lazy_static::lazy_static;
 lazy_static! {
-    static ref FALLBACK_ICON: Icon = Icon::from_pixels(1, 1, &[127, 127, 127, 255]);
+    static ref FALLBACK_ICON: Icon = Icon::from_rgba(1, 1, vec![127u8, 127u8, 127u8, 255u8]);
 }
 
 // TODO
@@ -103,8 +103,6 @@ impl<T> Context<T> for Option<T> {
         self.ok_or(IconError(msg.to_string(), None))
     }
 }
-
-trait IconImpl {}
 
 // defines functions that must be implemented for every operating
 // system in order implement icons in jolly
@@ -406,43 +404,48 @@ fn icon_from_svg(path: &std::path::Path) -> Result<Icon, IconError> {
 
     rtree.render(transform, &mut pixmap.as_mut());
 
-    Ok(Icon::from_pixels(
-        icon_size,
-        icon_size,
-        pixmap.take().leak(),
-    ))
+    Ok(Icon::from_rgba(icon_size, icon_size, pixmap.take()))
 }
 
 #[cfg(test)]
 mod tests {
+    use std::hash::{DefaultHasher, Hash, Hasher};
+
     use crate::icon::IconType;
 
     use super::{Icon, IconError, IconInterface, IconSettings};
-    use iced::advanced::image;
+
+    fn hash_icon(icon: &Icon) -> u64 {
+        let mut hash = DefaultHasher::new();
+        match icon {
+            Icon::Bytes(_, b) => b.hash(&mut hash),
+            Icon::Path(_, p) => p.hash(&mut hash),
+            Icon::Rgba { pixels: p, .. } => p.hash(&mut hash),
+        }
+        hash.finish()
+    }
 
     pub(crate) fn hash_eq_icon(icon: &Icon, ficon: &Icon) -> bool {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut ihash = DefaultHasher::new();
-        let mut fhash = DefaultHasher::new();
-        icon.hash(&mut ihash);
-        ficon.hash(&mut fhash);
-        ihash.finish() == fhash.finish()
+        hash_icon(&icon) == hash_icon(&ficon)
     }
 
     fn iconlike(icon: Icon, err_msg: &str) {
-        match icon.data() {
-            image::Data::Path(p) => {
+        assert!(
+            !hash_eq_icon(&icon, &super::FALLBACK_ICON),
+            "icon hash matches fallback icon, should not occur during happycase"
+        );
+        match icon {
+            Icon::Path(_, p) => {
                 assert!(p.exists())
             }
-            image::Data::Bytes(bytes) => {
+            Icon::Bytes(_, bytes) => {
                 assert!(bytes.len() > 0)
             }
-            image::Data::Rgba {
+            Icon::Rgba {
                 width,
                 height,
                 pixels,
+                ..
             } => {
                 let num_pixels = width * height;
 
@@ -455,11 +458,6 @@ mod tests {
                 )
             }
         };
-
-        assert!(
-            !hash_eq_icon(&icon, &super::FALLBACK_ICON),
-            "icon hash matches fallback icon, should not occur during happycase"
-        );
     }
 
     #[test]
@@ -489,7 +487,7 @@ mod tests {
 
         impl IconInterface for MockIcon {
             fn get_default_icon(&self) -> Result<crate::icon::Icon, crate::icon::IconError> {
-                Ok(super::Icon::from_pixels(1, 1, &[1, 1, 1, 1]))
+                Ok(super::Icon::from_rgba(1, 1, vec![1, 1, 1, 1]))
             }
 
             fn get_icon_for_file<P: AsRef<std::path::Path>>(
@@ -626,7 +624,7 @@ mod tests {
         let os = IconSettings::default();
 
         let pbm_icon = os.try_load_icon(IconType::custom(pbm_fn)).unwrap();
-        assert!(matches!(pbm_icon.data(), image::Data::Path(_)));
+        assert!(matches!(pbm_icon, Icon::Path(_, _)));
 
         os.try_load_icon(IconType::custom("file_with_no_extension"))
             .unwrap_err();
@@ -636,13 +634,13 @@ mod tests {
 
         let svg_icon = os.try_load_icon(IconType::custom(test_svg)).unwrap();
         assert!(matches!(
-            svg_icon.data(),
-            image::Data::Rgba {
+            svg_icon,
+            Icon::Rgba {
                 width: w,
                 height: h,
-                pixels: _
+                ..
             }
-            if *w == DEFAULT_ICON_SIZE as u32 && *h == DEFAULT_ICON_SIZE as u32
+            if w == DEFAULT_ICON_SIZE as u32 && h == DEFAULT_ICON_SIZE as u32
         ));
     }
 

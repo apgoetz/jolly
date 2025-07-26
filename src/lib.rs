@@ -11,8 +11,8 @@ use ::log::trace;
 use iced::widget::text::Shaping;
 use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
-use iced::{clipboard, event, keyboard, subscription, widget, window};
-use iced::{executor, Application, Command, Element, Length, Renderer, Size};
+use iced::{clipboard, event, keyboard, widget, window};
+use iced::{Element, Length, Size, Task};
 use lazy_static;
 use std::sync::mpsc;
 
@@ -42,6 +42,8 @@ pub enum Message {
     DimensionsChanged(f32, f32),
     StartedIconWorker(mpsc::Sender<icon::IconCommand>),
     IconReceived(icon::IconType, icon::Icon),
+    InitialWindowCreation(window::Id),
+    SearchSubmitted,
 }
 
 #[derive(Debug)]
@@ -59,6 +61,9 @@ impl Default for StoreLoadedState {
 
 #[derive(Default)]
 pub struct Jolly {
+    id: Option<window::Id>, /* For now, we store our window id as an option. And then unrwap it everywhere, because i cant figure out how to get iced to pass us our first window id at startup.
+                            Once we get proper daemon support with creating / destroying windows this madness will go away
+                             */
     searchtext: String,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
@@ -72,17 +77,17 @@ pub struct Jolly {
 }
 
 impl Jolly {
-    fn move_to_err(&mut self, err: error::Error) -> Command<<Jolly as Application>::Message> {
+    fn move_to_err(&mut self, err: error::Error) -> Task<Message> {
         ::log::error!("{err}");
         self.store_state = StoreLoadedState::Finished(err);
-        Command::none()
+        Task::none()
     }
 
-    fn handle_selection(&mut self, id: entry::EntryId) -> Command<<Jolly as Application>::Message> {
+    fn handle_selection(&mut self, id: entry::EntryId) -> Task<Message> {
         // we can only continue if the store is loaded
         let store = match &self.store_state {
             StoreLoadedState::LoadSucceeded(s, _) => s,
-            _ => return Command::none(),
+            _ => return Task::none(),
         };
 
         let entry = store.get(id);
@@ -99,26 +104,22 @@ impl Jolly {
                 clipboard::write(result),
                 self.move_to_err(error::Error::FinalMessage(msg)),
             ];
-            Command::batch(cmds)
+            Task::batch(cmds)
         } else {
             let result = entry.handle_selection(&self.searchtext);
 
             if let Err(e) = result.map_err(error::Error::StoreError) {
                 self.move_to_err(e)
             } else {
-                iced::window::close()
+                iced::window::close(self.id.unwrap())
             }
         }
     }
 }
-
-impl Application for Jolly {
-    type Executor = executor::Default;
-    type Message = Message;
-    type Theme = theme::Theme;
-    type Flags = config::Config;
-
-    fn new(config: Self::Flags) -> (Self, Command<Self::Message>) {
+type Theme = theme::Theme;
+type Flags = config::Config;
+impl Jolly {
+    pub fn new(config: Flags) -> (Self, Task<Message>) {
         let mut jolly = Self::default();
 
         jolly.settings = config.settings;
@@ -136,46 +137,52 @@ impl Application for Jolly {
                 StoreLoadedState::Finished(e)
             }
         };
+
         (
             jolly,
-            Command::batch([
-                window::change_mode(window::Mode::Windowed),
+            Task::batch([
+                window::get_oldest().map(|id| Message::InitialWindowCreation(id.unwrap())),
                 text_input::focus(TEXT_INPUT_ID.clone()),
-                // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
-                window::gain_focus(),
             ]),
         )
     }
 
-    fn title(&self) -> String {
-        String::from("jolly")
+    pub fn theme(&self) -> theme::Theme {
+        self.settings.ui.theme.clone()
     }
 
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+    pub fn update(&mut self, message: Message) -> Task<Message> {
         trace!("Received Message::{:?}", message);
 
         // first, match the messages that would cause us to quit regardless of application state
         match message {
-            Message::ExternalEvent(event::Event::Keyboard(e)) => {
-                if let keyboard::Event::KeyReleased {
-                    key_code: key,
-                    modifiers: _,
-                } = e
-                {
-                    if key == keyboard::KeyCode::Escape {
-                        return iced::window::close();
+            Message::InitialWindowCreation(id) => {
+                self.id = Some(id);
+                return Task::batch([
+                    window::change_mode(id, window::Mode::Windowed),
+                    window::gain_focus(id), // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
+                ]);
+            }
+            Message::ExternalEvent(event::Event::Keyboard(ref e)) => {
+                if matches!(
+                    e,
+                    keyboard::Event::KeyReleased {
+                        key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                        ..
                     }
+                ) {
+                    return iced::window::close(self.id.unwrap());
                 }
             }
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Focused => {
                 self.focused_once = true;
-                return Command::none();
+                return Task::none();
             }
 
             Message::ExternalEvent(event::Event::Window(w))
                 if w == window::Event::Unfocused && self.focused_once =>
             {
-                return iced::window::close();
+                return iced::window::close(self.id.unwrap());
             }
 
             // handle height change even if UI has failed to load
@@ -188,8 +195,12 @@ impl Application for Jolly {
 
                 self.bounds.width = width;
                 self.bounds.height = height;
-
-                return window::resize(Size::new(width.ceil() as u32, height.ceil() as u32));
+                //TODO DimensionsChanged can get returned before we "learn" our window id, so we ignore any calls before that point
+                if let Some(id) = self.id {
+                    return window::resize(id, Size::new(width.ceil(), height.ceil()));
+                } else {
+                    return Task::none();
+                }
             }
             _ => (), // dont care at this point about other messages
         };
@@ -197,7 +208,7 @@ impl Application for Jolly {
         // then, check if we are loaded. ifwe have failed to laod, we stop processing messages
         let store = match &mut self.store_state {
             StoreLoadedState::LoadSucceeded(s, _) => s,
-            _ => return Command::none(),
+            _ => return Task::none(),
         };
 
         // if we are here, we are loaded and we dont want to quit
@@ -215,51 +226,60 @@ impl Application for Jolly {
 
                 self.search_results = new_results;
 
-                Command::none()
+                Task::none()
             }
-            Message::ExternalEvent(event::Event::Window(window::Event::FileDropped(path))) => {
-                println!("{:?}", path);
-                Command::none()
+
+            Message::SearchSubmitted => {
+                let cmd = if let Some(id) = self.search_results.selected() {
+                    self.handle_selection(id)
+                } else {
+                    iced::window::close(self.id.unwrap())
+                };
+                return cmd;
             }
+
             Message::ExternalEvent(event::Event::Keyboard(e)) => {
                 if let keyboard::Event::KeyReleased {
-                    key_code: key,
-                    modifiers: _,
+                    key: keyboard::Key::Named(keyname),
+                    ..
                 } = e
                 {
-                    if key == keyboard::KeyCode::Escape {
-                        return iced::window::close();
-                    } else if key == keyboard::KeyCode::NumpadEnter
-                        || key == keyboard::KeyCode::Enter
-                    {
-                        let cmd = if let Some(id) = self.search_results.selected() {
-                            self.handle_selection(id)
-                        } else {
-                            iced::window::close()
-                        };
-                        return cmd;
+                    match keyname {
+                        keyboard::key::Named::Escape => {
+                            return iced::window::close(self.id.unwrap())
+                        }
+                        keyboard::key::Named::Enter => {
+                            let cmd = if let Some(id) = self.search_results.selected() {
+                                self.handle_selection(id)
+                            } else {
+                                iced::window::close(self.id.unwrap())
+                            };
+                            return cmd;
+                        }
+                        _ => {}
                     }
-                }
+                };
 
-                if keyboard::Event::CharacterReceived('\r') == e {
+                //TODO see if we need to support this
+                /*                 if keyboard::Event::CharacterReceived('\r') == e {
                     let cmd = if let Some(id) = self.search_results.selected() {
                         self.handle_selection(id)
                     } else {
-                        iced::window::close()
+                        iced::window::close(self.id.unwrap())
                     };
                     return cmd;
-                }
+                } */
 
                 if let keyboard::Event::ModifiersChanged(m) = e {
                     self.modifiers = m;
                 }
 
                 self.search_results.handle_kb(e);
-                Command::none()
+                Task::none()
             }
             Message::EntryHovered(entry) => {
                 self.search_results.set_selection(entry);
-                Command::none()
+                Task::none()
             }
             Message::EntrySelected(entry) => self.handle_selection(entry),
             Message::StartedIconWorker(worker) => {
@@ -270,74 +290,77 @@ impl Application for Jolly {
                     .expect("Could not send message to iconworker");
                 self.icache.set_cmd(worker);
 
-                Command::none()
+                Task::none()
             }
             Message::IconReceived(it, icon) => {
                 self.icache.add_icon(it, icon);
 
                 store.load_icons(self.search_results.entries(), &mut self.icache);
 
-                Command::none()
+                Task::none()
             }
-            _ => Command::none(),
+            _ => Task::none(),
         }
     }
 
-    fn view(&self) -> Element<'_, Message, Renderer<Self::Theme>> {
+    pub fn view(&self) -> Element<'_, Message, Theme> {
         use StoreLoadedState::*;
 
-        let ui: Element<_, Renderer<Self::Theme>> = match &self.store_state {
-            LoadSucceeded(store, msg) => widget::Column::new()
-                .push(
-                    TextInput::new(msg, &self.searchtext)
-                        .on_input(Message::SearchTextChanged)
-                        .size(self.settings.ui.search.common.text_size())
-                        .id(TEXT_INPUT_ID.clone())
-                        .padding(self.settings.ui.search.padding),
-                )
-                .push(
-                    self.search_results
-                        .view(&self.searchtext, store, Message::EntrySelected),
-                )
-                .into(),
+        let ui: Element<_, Theme> = match &self.store_state {
+            LoadSucceeded(store, msg) => {
+                let col = widget::Column::new()
+                    .push(
+                        TextInput::new(msg, &self.searchtext)
+                            .on_input(Message::SearchTextChanged)
+                            .on_submit(Message::SearchSubmitted)
+                            .size(self.settings.ui.search.common.text_size())
+                            .id(TEXT_INPUT_ID.clone())
+                            .style(|t, s| theme::text_input::search(t, s))
+                            .padding(self.settings.ui.search.padding), //TODO add on_submit
+                    )
+                    .push(self.search_results.view(
+                        &self.searchtext,
+                        store,
+                        Message::EntrySelected,
+                    ));
+                col.into()
+            }
             Pending => Text::new("Loading Bookmarks...").into(),
             Finished(err) => {
                 let errtext = Text::new(err.to_string()).shaping(Shaping::Advanced);
-                let style;
                 let children;
+
                 if let error::Error::FinalMessage(_) = err {
-                    style = theme::ContainerStyle::Transparent;
                     children = vec![errtext.into()];
                 } else {
-                    style = theme::ContainerStyle::Error;
                     let title = Text::new("Oops, Jolly has encountered an Error...")
-                        .style(iced::theme::Text::Color(
-                            ui::Color::from_str("#D64541").into(),
-                        ))
+                        .color(ui::Color::from_str("#D64541"))
                         .size(2 * self.settings.ui.search.common.text_size());
                     children = vec![title.into(), errtext.into()];
                 }
 
                 let col = widget::Column::with_children(children).spacing(5);
 
-                iced::widget::container::Container::new(col)
-                    .style(style)
+                let container = iced::widget::container::Container::new(col)
                     .padding(5)
-                    .width(Length::Fill)
-                    .into()
+                    .width(Length::Fill);
+                if let error::Error::FinalMessage(_) = err {
+                    container.style(theme::container::transparent)
+                } else {
+                    container.style(theme::container::error)
+                }
+                .into()
             }
         };
 
+        //widget::Container::new(ui).into()
         custom::MeasuredContainer::new(ui, Message::DimensionsChanged).into()
     }
 
-    fn theme(&self) -> Self::Theme {
-        self.settings.ui.theme.clone()
-    }
-
-    fn subscription(&self) -> iced::Subscription<Message> {
-        let channel = subscription::run(icon::icon_worker);
-        let external = subscription::events().map(Message::ExternalEvent);
-        subscription::Subscription::batch([channel, external].into_iter())
+    pub fn subscription(&self) -> iced::Subscription<Message> {
+        iced::Subscription::batch([
+            iced::Subscription::run(icon::icon_worker),
+            event::listen().map(Message::ExternalEvent),
+        ])
     }
 }
