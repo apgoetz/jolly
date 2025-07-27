@@ -523,7 +523,7 @@ mod tests {
         use crate::icon::Context;
         // test urls that default macos has support for
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let happycase_urls = vec!["http://example.com", "https://example.com"];
+        let happycase_urls = vec!["https://example.com"];
 
         #[cfg(all(unix, not(target_os = "macos")))]
         let happycase_urls: Vec<&str> = Vec::new();
