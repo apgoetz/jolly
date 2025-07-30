@@ -415,6 +415,29 @@ mod tests {
 
     use super::{Icon, IconError, IconInterface, IconSettings};
 
+    trait Complain {
+        fn complain(&self) -> String;
+    }
+
+    impl<T: std::error::Error> Complain for T {
+        fn complain(&self) -> String {
+            let mut msg = self.to_string();
+            if let Some(next) = self.source() {
+                let mut next = next;
+                loop {
+                    msg.push_str(&format!(" Caused by: {}", next));
+                    if let Some(n) = next.source() {
+                        next = n;
+                    } else {
+                        return msg;
+                    }
+                }
+            } else {
+                return msg;
+            }
+        }
+    }
+
     fn hash_icon(icon: &Icon) -> u64 {
         let mut hash = DefaultHasher::new();
         match icon {
@@ -522,8 +545,11 @@ mod tests {
     fn common_urls_are_iconlike() {
         use crate::icon::Context;
         // test urls that default macos has support for
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
-        let happycase_urls = vec!["https://example.com"];
+        #[cfg(target_os = "macos")]
+        let happycase_urls = vec!["http://example.com", "https://example.com"];
+
+        #[cfg(target_os = "windows")]
+        let happycase_urls = vec!["im:foo.com"];
 
         #[cfg(all(unix, not(target_os = "macos")))]
         let happycase_urls: Vec<&str> = Vec::new();
@@ -569,7 +595,7 @@ mod tests {
                 os.get_icon_for_url(&u)
                     .context(format!("failed to load '{u}'"))
                     .err()
-                    .map(|e| e.to_string())
+                    .map(|e| e.complain())
             })
             .chain(sadcase_urls.into_iter().filter_map(|u| {
                 os.get_icon_for_url(&u)
