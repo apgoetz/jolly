@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use iced::{Settings, Size};
+use iced::Settings;
 use jolly::{cli, config, Jolly};
 use std::process::ExitCode;
 use std::time::Instant;
@@ -36,25 +36,17 @@ pub fn main() -> ExitCode {
     }
 
     let mut settings = Settings::default();
-    let mut wsettings = iced::window::Settings::default();
-    wsettings.size = Size {
-        width: config.settings.ui.width as f32,
-        height: config.settings.ui.search.starting_height() as f32,
-    };
-    wsettings.decorations = false;
-    wsettings.visible = false;
 
     settings.default_text_size = config.settings.ui.common.text_size().into();
 
     //probably missing something here about setting windows settings and subscriptions???
-    iced::application(
+    iced::daemon(
         "JOLLY BUT YOU ARENT SUPPOSED TO SEE THIS",
         Jolly::update,
         Jolly::view,
     )
     .subscription(Jolly::subscription)
     .settings(settings)
-    .window(wsettings)
     .theme(Jolly::theme)
     .run_with(|| Jolly::new(config))
     .map(|_| ExitCode::SUCCESS)

@@ -11,6 +11,7 @@ use ::log::trace;
 use iced::widget::text::Shaping;
 use iced::widget::text_input;
 use iced::widget::{Text, TextInput};
+use iced::window::Id;
 use iced::{clipboard, event, keyboard, widget, window};
 use iced::{Element, Length, Size, Task};
 use lazy_static;
@@ -59,11 +60,8 @@ impl Default for StoreLoadedState {
     }
 }
 
-#[derive(Default)]
 pub struct Jolly {
-    id: Option<window::Id>, /* For now, we store our window id as an option. And then unrwap it everywhere, because i cant figure out how to get iced to pass us our first window id at startup.
-                            Once we get proper daemon support with creating / destroying windows this madness will go away
-                             */
+    id: window::Id,
     searchtext: String,
     store_state: StoreLoadedState,
     search_results: search_results::SearchResults,
@@ -111,7 +109,7 @@ impl Jolly {
             if let Err(e) = result.map_err(error::Error::StoreError) {
                 self.move_to_err(e)
             } else {
-                iced::window::close(self.id.unwrap())
+                iced::exit()
             }
         }
     }
@@ -120,7 +118,26 @@ type Theme = theme::Theme;
 type Flags = config::Config;
 impl Jolly {
     pub fn new(config: Flags) -> (Self, Task<Message>) {
-        let mut jolly = Self::default();
+        let mut wsettings: iced::window::Settings = iced::window::Settings::default();
+        wsettings.size = Size {
+            width: config.settings.ui.width as f32,
+            height: config.settings.ui.search.starting_height() as f32,
+        };
+        wsettings.decorations = false;
+        wsettings.visible = false;
+
+        let (id, open_task) = window::open(wsettings);
+        let mut jolly = Self {
+            id: id,
+            searchtext: Default::default(),
+            store_state: Default::default(),
+            search_results: Default::default(),
+            modifiers: Default::default(),
+            settings: Default::default(),
+            icache: Default::default(),
+            bounds: Default::default(),
+            focused_once: Default::default(),
+        };
 
         jolly.settings = config.settings;
 
@@ -141,13 +158,15 @@ impl Jolly {
         (
             jolly,
             Task::batch([
-                window::get_oldest().map(|id| Message::InitialWindowCreation(id.unwrap())),
+                open_task.map(Message::InitialWindowCreation),
                 text_input::focus(TEXT_INPUT_ID.clone()),
+                window::change_mode(id, window::Mode::Windowed),
+                window::gain_focus(id), // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
             ]),
         )
     }
 
-    pub fn theme(&self) -> theme::Theme {
+    pub fn theme(&self, _id: Id) -> theme::Theme {
         self.settings.ui.theme.clone()
     }
 
@@ -156,13 +175,6 @@ impl Jolly {
 
         // first, match the messages that would cause us to quit regardless of application state
         match message {
-            Message::InitialWindowCreation(id) => {
-                self.id = Some(id);
-                return Task::batch([
-                    window::change_mode(id, window::Mode::Windowed),
-                    window::gain_focus(id), // steal focus after startup: fixed bug on windows where it is possible to start jolly without focus
-                ]);
-            }
             Message::ExternalEvent(event::Event::Keyboard(ref e)) => {
                 if matches!(
                     e,
@@ -171,7 +183,7 @@ impl Jolly {
                         ..
                     }
                 ) {
-                    return iced::window::close(self.id.unwrap());
+                    return iced::exit();
                 }
             }
             Message::ExternalEvent(event::Event::Window(w)) if w == window::Event::Focused => {
@@ -182,7 +194,7 @@ impl Jolly {
             Message::ExternalEvent(event::Event::Window(w))
                 if w == window::Event::Unfocused && self.focused_once =>
             {
-                return iced::window::close(self.id.unwrap());
+                return iced::exit();
             }
 
             // handle height change even if UI has failed to load
@@ -195,12 +207,8 @@ impl Jolly {
 
                 self.bounds.width = width;
                 self.bounds.height = height;
-                //TODO DimensionsChanged can get returned before we "learn" our window id, so we ignore any calls before that point
-                if let Some(id) = self.id {
-                    return window::resize(id, Size::new(width.ceil(), height.ceil()));
-                } else {
-                    return Task::none();
-                }
+
+                return window::resize(self.id, Size::new(width.ceil(), height.ceil()));
             }
             _ => (), // dont care at this point about other messages
         };
@@ -233,7 +241,7 @@ impl Jolly {
                 let cmd = if let Some(id) = self.search_results.selected() {
                     self.handle_selection(id)
                 } else {
-                    iced::window::close(self.id.unwrap())
+                    iced::exit()
                 };
                 return cmd;
             }
@@ -245,14 +253,12 @@ impl Jolly {
                 } = e
                 {
                     match keyname {
-                        keyboard::key::Named::Escape => {
-                            return iced::window::close(self.id.unwrap())
-                        }
+                        keyboard::key::Named::Escape => return iced::exit(),
                         keyboard::key::Named::Enter => {
                             let cmd = if let Some(id) = self.search_results.selected() {
                                 self.handle_selection(id)
                             } else {
-                                iced::window::close(self.id.unwrap())
+                                iced::exit()
                             };
                             return cmd;
                         }
@@ -303,7 +309,7 @@ impl Jolly {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message, Theme> {
+    pub fn view(&self, _id: Id) -> Element<'_, Message, Theme> {
         use StoreLoadedState::*;
 
         let ui: Element<_, Theme> = match &self.store_state {
