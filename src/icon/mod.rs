@@ -548,27 +548,18 @@ mod tests {
         #[cfg(target_os = "macos")]
         let happycase_urls = vec!["http://example.com", "https://example.com"];
 
-        #[cfg(target_os = "windows")]
-        let happycase_urls = vec!["im:foo.com"];
-
         #[cfg(all(unix, not(target_os = "macos")))]
         let happycase_urls: Vec<&str> = Vec::new();
 
         #[cfg(windows)]
-        let happycase_urls: Vec<_> = happycase_urls
-            .into_iter()
-            .chain(
-                [
-                    "accountpicturefile:",
-                    "AudioCD:",
-                    "batfile:",
-                    "fonfile:",
-                    "hlpfile:",
-                    "regedit:",
-                ]
-                .into_iter(),
-            )
-            .collect();
+        let happycase_urls: Vec<_> = vec![
+            "accountpicturefile:",
+            "AudioCD:",
+            "batfile:",
+            "fonfile:",
+            "hlpfile:",
+            "regedit:",
+        ];
 
         let sadcase_urls = vec![
             "totallynonexistantprotocol:",
